@@ -1,0 +1,1308 @@
+{$DEFINE SMART}
+{$i Srl\Srl.Scar}
+{$i Reflection2\Reflection.Simba}
+{$i SRL\SRL\misc\paintsmart.scar}
+{$i SRL\SRL\Skill\Magic.scar}
+{$i SRL\SRL\Misc\Stats.Simba}
+
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+{------------------------------Go's Smelter v0.03------------------------------}
+{-----------------------------------By: Yago-----------------------------------}
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+{-------Official Thread: http://villavu.com/forum/showthread.php?t=65380-------}
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+
+                         {---Setup Instructions---}
+
+{1. Fill In The Username, Password, And Bank Pin -- Leave Blank If None...     }
+{2. Set The Amount Of Time To Run The Script (In Minutes).                     }
+{3. Set The Number Of Bars To Smelt.                                           }
+{4. If Necessary Change HowManyPlayers.                                        }
+{5. (Optional) Enter SRL-Stats UserID And Password.                            }
+
+const
+                         {---SMART Setup Constants---}
+  WORLD = 40;                      // Choose What Server To Load. Set As 0 For Random Sever.
+  MEMBERS = False;                 // Member's Server? True = Members. False = Non-Members.
+  SIGNED = True;                   // Signed Client?
+                         {---------------------------}
+
+  Stats_UserID    = '';            // SRL Stats ID (Leave Blank If None).
+  Stats_Password  = '';            // SRL Stats Password (Leave Blank If None).
+
+  DebugScript     = False;         // Set To True To Debug The Script.
+  PaintToSMART    = True;          // Set To True To Paint On SMART.
+  AutoUpdate      = True;          // Check For And Download The Newest Script Version.
+
+  TakeBreaks      = False;         // Set To True To Take Breaks.
+  BreakAfter      = 60;            // Time To Run Script Before Taking A Break.
+  BreakTime       = 15;            // How Long To Take A Break (Plus Randomness).
+  BreakRandomness = 5;             // Randomness Used When Breaking.
+
+  AntiBanAmount   = 5;             // 0 = 0% Chance. 100 = 100%. 5 = About 5.5% Per Bar.
+
+
+                         {-------Declare Players------}
+Procedure DeclarePlayers;
+
+begin
+  HowManyPlayers := 1;             // The Number Of Players You Have.
+  NumberOfPlayers(HowManyPlayers); // Don't Change.
+  CurrentPlayer := 0;              // Player To Start With (0 is the first).
+
+  with Players[0] do
+  begin
+    Name           := '';          // Username.
+    Pass           := '';          // Password.
+    Active         := True;        // Use This Player?
+    Pin            := '';          // Bank Pin. Leave Blank If None.
+    Member         := False;       // True = Members Account & False = Non-Members Account.
+    Integers[0]    := 0;           // Time To Run The Script In Minutes. Set To Zero To Run Forever.
+    Integers[1]    := 0;           // Amount Of Bars To Smelt. Set 0 To Buy An Infinite Amount.
+    Strings[1]     := 'Steel';     // Choose 'Bronze', 'Iron', 'Silver', 'Steel', 'Gold', 'Mithril', 'Adamant',
+  end;                             // 'Rune', 'Cannonballs' or 'Balls'
+
+//To Add More Players, Remove The Brackets...
+
+  {
+  with Players[1] do
+  begin
+    Name           := '';          // Username.
+    Pass           := '';          // Password.
+    Active         := True;        // Use This Player?
+    Pin            := '';          // Bank Pin. Leave Blank If None.
+    Member         := False;       // True = Members Account & False = Non-Members Account.
+    Integers[0]    := 0;           // Time To Run The Script In Minutes. Set To Zero To Run Forever.
+    Integers[1]    := 0;           // Amount Of Bars To Smelt. Set 0 To Buy An Infinite Amount.
+    Strings[1]     := 'Steel';     // Choose 'Bronze', 'Iron', 'Silver', 'Steel', 'Gold', 'Mithril', 'Adamant',
+  end;                             // 'Rune', 'Cannonballs' or 'Balls'
+  }
+end;
+
+               {Don't Change Anything Below This Line.}
+{------------------------------------------------------------------------------}
+//Disregard this...
+//((Int))0-TimeToRun,1-AmountToDo,2-Ore1,3-Ore2,4-Ore1#,5-Ore2#,6-BarID,7-BarsDone
+//((Str))0-Reason,1-BarType,2,3,4-StatsVar
+//((Bool))0-MultipleOre
+
+const
+//Global Constants. Do Not Touch.
+  Version = '0.3';
+  MouldID = 4;
+
+var
+//Global Variables. Do Not Touch.
+  BreakRounds, NextBreak, TotalBreaks: Integer;
+  DWPath: TTileArray;
+  DWBox: TBox;
+  Success, Closer, Moddy: Boolean;
+
+Procedure DebugIt(Text: string);
+
+begin
+  if DebugScript then
+    Writeln(Text);
+end;
+
+Procedure LoadVariables;
+
+begin
+  WriteLn('Running Procedure LoadVariables.');
+  DWPath := [Point(3223, 3218), Point(3235, 3218), Point(3236, 3207),
+             Point(3241, 3197), Point(3244, 3185), Point(3242, 3174),
+             Point(3245, 3166), Point(3252, 3172), Point(3265, 3173),
+             Point(3271, 3166)];
+  DWBox := IntToBox(3262,3191,3284,3156);
+end;
+
+Procedure LoadBars(I: Integer);
+
+begin
+  DebugIt('Running Procedure LoadBars For Player(' + ToStr(I) +').');
+  if Players[I].Active then
+    case lowercase(Players[I].Strings[1]) of
+      'bronze':
+      begin
+        Players[I].Strings[2] := 'Bronze Bars Melted';
+        Players[I].Strings[3] := 'Copper Ore (Melted)';
+        Players[I].Strings[4] := 'Tin Ore (Melted)';
+        Players[I].Integers[2] := 438;
+        Players[I].Integers[3] := 436;
+        Players[I].Integers[4] := 14;
+        Players[I].Integers[5] := -1;
+        Players[I].Integers[6] := 2349;
+        Players[I].Extendeds[0] := 6.2;
+        Players[I].Booleans[0] := True;
+      end;
+
+      'iron':
+      begin
+        Players[I].Strings[2] := 'Iron Bars Melted';
+        Players[I].Strings[3] := 'Iron Ore (Melted)';
+        Players[I].Integers[2] := 440;
+        Players[I].Integers[4] := -1;
+        Players[I].Integers[6] := 2351;
+        Players[I].Extendeds[0] := 12.5;
+        Players[I].Booleans[0] := False;
+      end;
+
+      'silver':
+      begin
+        Players[I].Strings[2] := 'Silver Bars Melted';
+        Players[I].Strings[3] := 'Silver Ore (Melted)';
+        Players[I].Integers[2] := 442;
+        Players[I].Integers[4] := -1;
+        Players[I].Integers[6] := 2355;
+        Players[I].Extendeds[0] := 13.7;
+        Players[I].Booleans[0] := False;
+      end;
+
+      'steel':
+      begin
+        Players[I].Strings[2] := 'Steel Bars Melted';
+        Players[I].Strings[3] := 'Iron Ore (Melted)';
+        Players[I].Strings[4] := 'Coal Core (Melted)';
+        Players[I].Integers[2] := 440;
+        Players[I].Integers[3] := 453;
+        Players[I].Integers[4] := 9;
+        Players[I].Integers[5] := -1;
+        Players[I].Integers[6] := 2353;
+        Players[I].Extendeds[0] := 17.5;
+        Players[I].Booleans[0] := True;
+      end;
+
+      'gold':
+      begin
+        Players[I].Strings[2] := 'Gold Bars Melted';
+        Players[I].Strings[3] := 'Gold Ore (Melted)';
+        Players[I].Integers[2] := 444;
+        Players[I].Integers[4] := -1;
+        Players[I].Integers[6] := 2357;
+        Players[I].Extendeds[0] := 22.5;
+        Players[I].Booleans[0] := False;
+      end;
+
+      'mithril':
+      begin
+        Players[I].Strings[2] := 'Mithril Bars Melted';
+        Players[I].Strings[3] := 'Mithril Ore (Melted)';
+        Players[I].Strings[4] := 'Coal Core (Melted)';
+        Players[I].Integers[2] := 447;
+        Players[I].Integers[3] := 453;
+        Players[I].Integers[4] := 5;
+        Players[I].Integers[5] := -1;
+        Players[I].Integers[6] := 2359;
+        Players[I].Extendeds[0] := 30.0;
+        Players[I].Booleans[0] := True;
+      end;
+
+      'adamant':
+      begin
+        Players[I].Strings[2] := 'Adamant Bars Melted';
+        Players[I].Strings[3] := 'Adamant Ore (Melted)';
+        Players[I].Strings[4] := 'Coal Core (Melted)';
+        Players[I].Integers[2] := 449;
+        Players[I].Integers[3] := 453;
+        Players[I].Integers[4] := 4;
+        Players[I].Integers[5] := -1;
+        Players[I].Integers[6] := 2361;
+        Players[I].Extendeds[0] := 37.5;
+        Players[I].Booleans[0] := True;
+      end;
+
+      'rune':
+      begin
+        Players[I].Strings[2] := 'Runite Bars Melted';
+        Players[I].Strings[3] := 'Runite Ore (Melted)';
+        Players[I].Strings[4] := 'Coal Core (Melted)';
+        Players[I].Integers[2] := 451;
+        Players[I].Integers[3] := 453;
+        Players[I].Integers[4] := 3;
+        Players[I].Integers[5] := -1;
+        Players[I].Integers[6] := 2363;
+        Players[I].Extendeds[0] := 50.0;
+        Players[I].Booleans[0] := True;
+      end;
+
+      'cannonballs','balls':
+      begin
+        Players[I].Strings[2] := 'Cannonballs (Made)';
+        Players[I].Integers[2] := 2353;
+        Players[I].Integers[4] := -1;
+        Players[I].Integers[6] := 2;
+        Players[I].Extendeds[0] := 25.6;
+        Players[I].Booleans[0] := False;
+      end;
+
+      else begin
+        Writeln('Invalid Bar Type Of Player(' + ToStr(I) + ').');
+        TerminateScript;
+      end;
+    end;
+end;
+
+{*******************************************************************************
+function WaitFuncEx(Func: string; var Args: TVariantArray; WaitPerLoop, MaxWait: integer): boolean;
+By: Dgby714
+Description: Calls Func with arguments Args every WaitPerLoop milliseconds
+    for a max of MaxWait milliseconds.
+    Func can return any basic types (boolean, string, integer).
+    boolean: Returns it.
+    string: Returns true if string equals 'true'.
+    integer: Returns true unless it equals 0.
+*******************************************************************************}
+function WaitFuncEx(Func: string; var Args: TVariantArray; WaitPerLoop, MaxWait: integer): boolean;
+var
+  T: integer;
+  Temp: variant;
+begin
+  T := GetSystemTime + MaxWait;
+  while (GetSystemTime < T) do
+  begin
+    Temp := CallProc(Func, Args);
+    if (not (VarType(Temp) = varString)) then
+      Temp := ToStr(Temp);
+    Result := StrToBoolDef(Temp, False);
+    if (Result) then
+      Exit;
+    Wait(WaitPerLoop);
+  end;
+end;
+
+Procedure AntiBan;
+
+var
+  I, AB: Integer;
+
+begin
+  if (AntiBanAmount <> 0) then
+  begin
+    if (AntiBanAmount > 100) then
+      AB := 100
+    else
+      AB := AntiBanAmount;
+    I := Random(9 * (Ceil(100/AB))) + 1;
+    case I of
+      1: RandomRClick;
+      2,3:
+        begin
+          HoverSkill('smithing', False);
+          SleepAndMoveMouse(500);
+        end;
+      4: PickUpMouse;
+      5: RandomAngle(True);
+      6: RandomMovement;
+      7: BoredHuman;
+      8..10: SleepAndMoveMouse(1000);
+    end;
+    if (I <= 10) then
+      DebugIt('Ran AntiBan Procedure.');
+  end;
+  R_GameTab(RTAB_INVENTORY);
+end;
+
+Procedure AntiRandoms;
+
+begin
+  LampSkill := 'Smithing';
+  R_FindRandoms;
+  if FindMod then
+    Moddy := True;
+  R_GameTab(RTAB_INVENTORY);
+  DebugIt('Ran Procedure AntiRandoms.');
+end;
+
+Procedure Maintenance;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure Maintenance.');
+  AntiRandoms;
+  R_MakeCompass('n');
+  R_SetCameraAngle(100);
+end;
+
+procedure PrintOnSmart(TP: TStringArray; Placement: TPoint; Colour, Shadow: integer);//Not Mines Just Editted
+var
+ mx, my, Pic, I, B, H, TPH, Numb, Chat, BG: Integer;
+ TTP: TPointArray;
+begin
+  SmartSetDebug(True);
+  ClearRSCanvas(SMART_Canvas.canvas);
+  GetClientDimensions(mx,my);
+  Pic := BitmapFromString(mx,my,'');
+  TPH := High(TP);
+  for I := 0 to TPH do
+  begin
+    TTP := LoadTextTPA(TP[i], SmallChars, H);
+    for B := 0 to High(TTP) do
+    begin
+      Numb := ((I + 1) * 13);
+      FastSetPixel(Pic, TTP[b].x + 1, TTP[b].y + Numb + 1, Shadow);
+      FastSetPixel(Pic, TTP[b].x + 1, TTP[b].y + Numb, Colour);
+      FastSetPixel(Pic, TTP[b].x, TTP[b].y + Numb, Colour);
+    end;
+  end;
+  BG := CreateBitMap(185, 180);
+  FastDrawClear(BG, 255);
+  Chat := CreateBitmap(181, 176);
+  FastDrawClear(Chat, 3421229);
+  SetTransparentColor(Pic, 0);
+  FastDrawTransparent(Placement.x,Placement.y,Pic,Chat);
+  FastDrawTransparent(2, 2, Chat, BG);
+  DrawBitmap(BG,SMART_Canvas.Canvas, 332, 4);
+  FreeBitmap(BG);
+  FreeBitmap(Pic);
+  FreeBitmap(Chat);
+end;
+
+procedure PaintIt(Bars, BPH, TBars, Exp, EPH, TExp, TLevels: Integer; Final: Boolean);
+
+var
+  Paint: TStringArray;
+
+begin
+  if Final then
+  begin
+    Paint :=
+      ['Go''s Smelter ~~ Yago',
+      'Version: ' + ToStr(Version),
+      'Total Players: ' + ToStr(HowManyPlayers),
+      'Total Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+      'Total Bars Smelted: ' + ToStr(TBars),
+      'Total Exp Gained: ' + ToStr(TExp),
+      'Total Levels Gained: ' + ToStr(TLevels),
+      ''];
+    if TakeBreaks then
+      Paint[5] := 'Total Breaks Taken: ' + ToStr(TotalBreaks);
+  end else
+  begin
+    Paint :=
+      ['Go''s Smelter ~~ Yago',
+      'Version: ' + ToStr(Version),
+      'Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+      'Player: ' + Players[CurrentPlayer].Name,
+      '    Time Active: ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Short),
+      '    Bars Smelted: ' + ToStr(Bars),
+      '    Bars Per Hour: ' + ToStr(BPH),
+      '    Exp Gained: ' + ToStr(Exp),
+      '    Exp Per Hour: ' + ToStr(EPH),
+      '    Smithing Level: ' + ToStr(Players[CurrentPlayer].Integers[11]) + ' (+' + ToStr(Players[CurrentPlayer].Integers[9]) +')',
+      '',
+      ''];
+    if TakeBreaks then
+    begin
+      Paint[10] := '    Breaks Taken: ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)';
+      Paint[11] := 'Next Break: Around ' + ToStr(NextBreak) + ' Minutes';
+    end;
+  end;
+  PrintOnSmart(Paint, Point(5, 0), 16052962, 16052962);
+end;
+
+{*******************************************************************************
+Procedure BreakHandler(BreakIn, BreakFor, randBreakIn, randBreakFor: Integer): Boolean;
+By: Echo_. Editted A Bit By Me.
+Description: Takes brakes according to the minute values entered
+*******************************************************************************}
+Procedure BreakHandler(BreakIn, BreakFor, randBreakIn, randBreakFor: Integer);
+var
+  w, x, y, z, counter: Integer;
+  Paint: TStringArray;
+begin
+  if not R_LoggedIn then
+    Exit;
+
+  w := (BreakIn * 60000);
+  x := (BreakFor * 60000);
+  y := RandomRange(-randBreakIn * 60000, randBreakIn * 60000);
+  z := RandomRange(-randBreakFor * 60000, randBreakFor * 60000);
+
+  if (PlayersActive = 1) then
+    if (GetTimeRunning > ((w) + (y) + BreakRounds)) then
+    begin
+      R_Flag;
+      Writeln('Taking A Break For About ' + IntToStr(Round((x + z)/60000)) + ' Minutes.');
+      AntiRandoms;
+      ClosePinScreen;
+      CloseWindow;
+      R_CloseBank;
+      CloseBank;
+      Logout;
+      repeat
+        if PaintToSmart then
+        begin
+          Paint :=
+            ['Go''s Smelter ~~ Yago',
+            'Version: ' + Version,
+            'Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+            'Player: ' + Players[CurrentPlayer].Name,
+            '    Time Active: ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Short),
+            '    Bars Smelted: ' + ToStr(Players[CurrentPlayer].Integers[7]),
+            '    Exp Gained: ' + ToStr(Round(Players[CurrentPlayer].Extendeds[0] * Players[CurrentPlayer].Integers[7])),
+            '    Smithing Level: ' + ToStr(Players[CurrentPlayer].Integers[11]) + ' (+' + ToStr(Players[CurrentPlayer].Integers[9]) +')',
+            'Breaks Taken: ' + ToStr(Players[CurrentPlayer].Integers[10]),
+            'Break: ' + ToStr((Ceil((x + z)/60000)) - Counter) + ' Mins. Left'];
+          PrintOnSmart(Paint, Point(5,0), 16052962, 16052962);
+        end;
+        Inc(Counter);
+        Wait(60000);
+        Writeln('Waited ' + ToStr(Counter) + ' Minutes Out Of ' + ToStr(Ceil((x + z)/60000)) + ' Minutes.');
+      until (Counter >= Ceil((x + z)/60000));
+      Writeln('Logging in.');
+      SwitchToPlayer(CurrentPlayer, True);
+      AntiRandoms;
+      IncEx(BreakRounds, w + y);
+      Inc(TotalBreaks);
+      Inc(Players[CurrentPlayer].Integers[10]);
+      NextBreak := Ceil(((w + BreakRounds) - GetTimeRunning)/60000);
+      Writeln('The Next Break Will Occur In Around ' + IntToStr(NextBreak) + ' Minutes.');
+    end;
+
+  if (PlayersActive > 1) then
+    if (GetTimeRunning > ((w) + (y) + BreakRounds)) then
+    begin
+      R_Flag;
+      Writeln('Taking A Break. Switching To The Next Player.');
+      AntiRandoms;
+      ClosePinScreen;
+      CloseWindow;
+      R_CloseBank;
+      CloseBank;
+      Logout;
+      IncEx(BreakRounds, w + y);
+      Inc(TotalBreaks);
+      Inc(Players[CurrentPlayer].Integers[10]);
+      NextPlayer(True);
+      Maintenance;
+    end;
+
+  NextBreak := Ceil(((w + BreakRounds) - GetTimeRunning)/60000);
+end;
+
+Procedure Report(Final: boolean);
+
+Var
+  Bar, TotalBars, Exp, TotalExp, TotalLevels, I: Integer;
+  BarsPerHour, ExpPerHour: LongInt;
+
+begin
+  for I := 0 to (High(Players)) do
+  begin
+    IncEx(TotalBars, Players[I].Integers[7]);
+    IncEx(TotalEXP, Round(Players[I].Extendeds[0] * Players[I].Integers[7]));
+    IncEx(TotalLevels, Players[I].Integers[9]);
+  end;
+  Writeln('[Report]');
+  SRLRandomsReport;
+  WriteLn('*----------------------------------------------------------------*');
+  WriteLn('|                        Go''s Smelter v ' + Padr(ToStr(Version), 25) + '|');
+  WriteLn('|                            By: Yago                            |');
+  WriteLn('|----------------------------------------------------------------|');
+  WriteLn('|                    Overall Progress Report                     |');
+  WriteLn('|                                                                |');
+  WriteLn('|           ' + Padr('Total Players : ' + ToStr(HowManyPlayers), 53) + '|');
+  WriteLn('|           ' + Padr('Total Time Running : ' + MsToTime(GetTimeRunning, Time_Abbrev), 53) + '|');
+  if TakeBreaks then
+    Writeln('|             ' + Padr('Total Breaks Taken : ' + ToStr(TotalBreaks) + ' Breaks', 51) + '|');
+  WriteLn('|           ' + Padr('Total Bars Smelted : ' + ToStr(TotalBars), 53) + '|');
+  WriteLn('|           ' + Padr('Total Experience Gained : ' + ToStr(TotalEXP), 53) + '|');
+  WriteLn('|           ' + Padr('Total Smithing Levels Gained : ' + ToStr(TotalLevels), 53) + '|');
+  WriteLn('|                                                                |');
+  WriteLn('|----------------------------------------------------------------|');
+
+  if (Final) then
+    for I := 0 to (High(Players)) do
+    begin
+      Bar := Players[I].Integers[7];
+      Exp := Round(Players[I].Extendeds[0] * Players[I].Integers[7]);
+      BarsPerHour := Ceil((Bar * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      ExpPerHour := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      WriteLn('|                       Individual Report:                       |');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Player[' + ToStr(I) + ']: ' + Players[I].Name, 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Reason : ' + Players[I].Strings[0], 60) + '|');
+      WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(I), Time_Abbrev), 60) + '|');
+      if TakeBreaks then
+        Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[I].Integers[10]) + ' Break(s)', 58) + '|');
+      WriteLn('|    ' + Padr('Bar Type : ' + Players[I].Strings[1], 60) + '|');
+      WriteLn('|    ' + Padr('Bars Smelted : ' + ToStr(Bar), 60) + '|');
+      WriteLn('|    ' + Padr('Bars Per Hour : ' + ToStr(BarsPerHour), 60) + '|');
+      WriteLn('|    ' + Padr('Experience Gained : ' + ToStr(Exp), 60) + '|');
+      WriteLn('|    ' + Padr('Experience Per Hour : ' + ToStr(ExpPerHour), 60) + '|');
+      WriteLn('|    ' + Padr('Smithing Level : ' + ToStr(Players[I].Integers[11]) + '(+' + ToStr(Players[I].Integers[9]) +')', 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('*----------------------------------------------------------------*');
+    end
+  else
+  begin
+    if not (R_LoggedIn) then
+      Exit;
+
+    Bar := Players[CurrentPlayer].Integers[7];
+    Exp := Round(Players[CurrentPlayer].Extendeds[0] * Players[CurrentPlayer].Integers[7]);
+    BarsPerHour := Ceil((Bar * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    ExpPerHour := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    WriteLn('|                       Individual Report:                       |');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Player[' + ToStr(CurrentPlayer) + ']: ' + Players[CurrentPlayer].Name, 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Reason : ' + Players[CurrentPlayer].Strings[0], 60) + '|');
+    WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Abbrev), 60) + '|');
+    if TakeBreaks then
+      Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)', 58) + '|');
+    WriteLn('|    ' + Padr('Bar Type : ' + Players[CurrentPlayer].Strings[1], 60) + '|');
+    WriteLn('|    ' + Padr('Bars Smelted : ' + ToStr(Bar), 60) + '|');
+    WriteLn('|    ' + Padr('Bars Per Hour : ' + ToStr(BarsPerHour), 60) + '|');
+    WriteLn('|    ' + Padr('Experience Gained : ' + ToStr(Exp), 60) + '|');
+    WriteLn('|    ' + Padr('Experience Per Hour : ' + ToStr(ExpPerHour), 60) + '|');
+    WriteLn('|    ' + Padr('Smithing Level : ' + ToStr(Players[CurrentPlayer].Integers[11]) + '(+' + ToStr(Players[CurrentPlayer].Integers[9]) +')', 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('*----------------------------------------------------------------*');
+  end;
+  Writeln('[/Report]');
+
+  if PaintToSMART then
+    PaintIt(Bar, BarsPerHour, TotalBars, Exp, ExpPerHour, TotalExp, TotalLevels, Final);
+end;
+
+Procedure StatsIn;
+
+begin
+  if (stats_Commit) then
+    Writeln('Stats Committed.')
+  else
+    DebugIt('Unable To Commit Stats.');
+end;
+
+Procedure EndScript(Reason: string);
+
+begin
+  StatsIn;
+  AntiRandoms;
+  if not Closer then
+    Report(False);
+  Writeln('Termination Cause: ' + Reason);
+  Players[CurrentPlayer].Strings[0] := Reason;
+  if R_LoggedIn then
+  begin
+    if R_PinScreen then
+      ClosePinScreen;
+    if R_BankScreen then
+    begin
+      R_CloseBank;
+      CloseBank;
+    end;
+  end else
+    Exit;
+  AntiRandoms;
+  WriteLn('Logging Player Out.');
+  WaitFunc(@Logout, RandomRange(100, 200), 1000);
+end;
+
+Function TeleWorked(WaitTime: Integer): Boolean;
+
+var
+  OriginalTile, NewTile: TTile;
+  Timer: Integer;
+
+begin
+  OriginalTile := R_GetMyPos;
+  MarkTime(Timer);
+  while (WaitTime >= TimeFromMark(Timer)) and (OriginalTile = R_GetMyPos) do
+    Wait(100);
+  Result := (OriginalTile <> NewTile);
+end;
+
+Function R_TileOnMMWrap(x, y: Integer): Boolean;
+
+begin
+  Result := R_TileOnMM(Point(x,y));
+end;
+
+Function DeathWalk: Boolean;
+
+var
+  Param1, Param2: TVariantArray;
+
+begin
+  if not R_LoggedIn then
+    Exit;
+
+  Result := False;
+
+  AntiRandoms;
+  if not R_SelfInBox(DWBox) then
+  begin
+    Writeln('Will Wait About 10 Seconds To Establish If Lost.');
+    Wait(10000);
+    if not R_SelfInBox(DWBox) then
+    begin
+      Writeln('In An Unknown Location. Will Begin Deathwalk.');
+      if R_GetPlaneIndex = 0 then
+        if R_WalkPathEx(DWPath, 2, 5, False) then
+        begin
+          Writeln('Found Our Way Back To The Correct Location.');
+          Result := True;
+          Exit;
+        end else
+          DebugIt('Unable To Walk The Path.')
+      else
+        DebugIt('Not On Groud Level, Therefore Can''t Walk.');
+      AntiRandoms;
+      if TabExists(Tab_Magic) then
+      begin
+        WriteLn('Will Attempt To Teleport To Lumbridge.');
+        R_GameTab(RTAB_SPELLBOOK);
+        Param1 := ['Lumbridge Home Teleport', False];
+        if (WaitFuncEx('Cast', Param1, 500, 5000)) then
+        begin
+          AntiRandoms;
+          Writeln('Will Wait A Bit To Verify A Teleport.');
+          Param2 := [DWPath[0].x,DWPath[0].y];
+          if TeleWorked(30000) then
+            if WaitFuncEx('R_TileOnMMWrap',Param2,100,10000) then
+            begin
+              Maintenance;
+              if (R_WalkPathEx(DWPath, 2, 5, False)) then
+              begin
+                Writeln('Found Our Way Back To The Correct Location.');
+                Result := True;
+                Maintenance;
+                Exit;
+              end else
+                EndScript('Unable To Walk The Path.');
+            end else
+              EndScript('Could Not Find The First Tile In The DeathWalk Path.')
+          else
+            EndScript('Not At Lumbridge After Home Teleport.');
+        end else
+          EndScript('Cannot Find The Home Teleport Button.');
+      end else
+        EndScript('Magic Tab Is Not Present. Cannot Attempt A Teleport.');
+    end;
+  end;
+end;
+
+Procedure WalkTo(Location: string);
+
+var
+  MainPath: TTileArray;
+  Fail: Integer;
+
+begin
+  if not R_LoggedIn then
+    Exit;
+
+  MainPath := [Point(3270, 3167), Point(3278, 3175), Point(3282, 3185),
+              Point(3275, 3186)];
+
+  AntiRandoms;
+  if R_GetMMLevels('run') <= 20 then
+    R_Rest(60 + Random(41));
+  R_SetRun(True);
+  case lowercase(Location) of
+    'bank': DebugIt('Walking To The Bank.');
+    'furnace': DebugIt('Walking To The Furnace.');
+  end;
+
+  for Fail := 1 to 8 do
+  begin
+    DebugIt('Attempt #' + ToStr(Fail) + ' To Walk.');
+    if R_WalkPathEx(MainPath, 1, 5, (lowercase(Location) = 'bank')) then
+    begin
+      stats_IncVariable('Times Walked', 1);
+      Break;
+    end;
+  end;
+  if (Fail >= 8) then
+    EndScript('Unable To Walk To ' + Location + '.');
+end;
+
+Function R_MaterialCheck(BankItems: TBankItemArray; WithdrawAmount: TIntegerArray): Boolean;
+
+var
+  I, WithdrawInt: Integer;
+
+begin
+  Result := False;
+  for I := 0 to High(BankItems) do
+  begin
+    if (WithdrawAmount[I] = -1) then
+      WithdrawInt := 28
+    else
+      WithdrawInt := WithdrawAmount[I];
+    Result := (BankItems[I].StackSize >= WithdrawInt);
+    if not Result then
+      Exit;
+  end;
+end;
+
+Function MakeBalls: Boolean;
+
+begin
+  Result := Players[CurrentPlayer].Integers[2] = 2353;
+end;
+
+Function R_BankMould: Boolean;
+
+var
+  A, Count: Integer;
+  Variant: TVariantArray;
+  Mould: TBankItem;
+
+begin
+  Result := False;
+  DebugIt('Running R_BankMould.');
+  Variant := [MouldID];
+  if not (R_CountItem(MouldID) > 0) then
+  begin
+    DebugIt('Attemptin To Withdraw A Ammo Mould.');
+    Count := R_InvCount + 1;
+    if R_ItemExistsInBank(MouldID, Mould) then
+    repeat
+      Inc(A);
+      R_WithdrawItem(MouldID, false);
+    until WaitFuncEx('R_CountItem',Variant,100,2500) or (A >= 15);
+    if not (R_CountItem(MouldID) > 0) then
+    begin
+      EndScript('No Ammo Mould In the Inventory Or Withdrawn From Bank.');
+      Exit;
+    end;
+  end;
+  while (R_CountItem(MouldID) = 1) and (not (R_InvCount = 1)) and (A < 15) do
+  begin
+    Inc(A);
+    DebugIt('Attempt ' + ToStr(A) + ' To Deposit Items...');
+    R_DepositAllBut(MouldID);
+  end;
+  Result := (R_InvCount = 1) and (R_CountItem(MouldID) = 1);
+  if not Result then
+    EndScript('Unable To Deposit Unneccessary Items.');
+end;
+
+Procedure BankItems;
+
+var
+  A, B, C: Integer;
+  ItemIDs: TVariantArray;
+  WithdrawNum: TIntegerArray;
+  Items: TBankItemArray;
+  MultipleOres: Boolean;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure Bank.');
+  B := 0;
+  MultipleOres := Players[CurrentPlayer].Booleans[0];
+  SetLength(ItemIDs, 1);
+  SetLength(WithdrawNum, 1);
+  ItemIDs[0] := Players[CurrentPlayer].Integers[2];
+  WithdrawNum[0] := Players[CurrentPlayer].Integers[4];
+  if MultipleOres then
+  begin
+    SetLength(ItemIDs, 2);
+    SetLength(WithdrawNum, 2);
+    ItemIDs[1] := Players[CurrentPlayer].Integers[3];
+    WithdrawNum[1] := Players[CurrentPlayer].Integers[5];
+  end;
+  stats_IncVariable('Times Banked', 1);
+  repeat
+    if not (R_LoggedIn) then
+      Exit;
+
+    Inc(B);
+    DebugIt('Attempt #' + IntToStr(B) + ' To Open The Bank.');
+    if R_OpenBankBooth then
+    begin
+      if R_PinScreen or PinScreen then
+      for A := 0 to 5 do
+        if R_InPin(Players[CurrentPlayer].Pin) then
+          Break;
+      if not R_BankScreen then
+      begin
+        EndScript('Entering Bank Pin Failed.');
+        Exit;
+      end;
+      if MakeBalls then
+      begin
+        if not R_BankMould then
+          Exit;
+      end else if (not R_InvEmpty) then
+      for A := 0 to 10 do
+      begin
+        Wait(100);
+        R_DepositAll(True);
+        if R_InvEmpty then
+          Break;
+      end;
+      if R_InvEmpty or (MakeBalls and (R_InvCount = 1)) then
+        if R_ItemsExistInBankEx(ItemIDs, Items) and R_MaterialCheck(Items, WithdrawNum) then
+        begin
+          for A := 0 to High(ItemIDs) do
+          begin
+            for C := 0 to 10 do
+            begin
+              Wait(100);
+              if ((WithdrawNum[A] = -1) and R_WithdrawItem(ItemIDs[A], True)) or
+                ((WithdrawNum[A] <> -1) and R_WithdrawX(ItemIDs[A], WithdrawNum[A])) then
+                Break;
+            end;
+            if (C >= 10) then
+              Break;
+          end;
+          Break;
+        end else
+        begin
+          EndScript('Insufficient Materials In The Bank.');
+          Exit;
+        end
+      else
+      begin
+        EndScript('Unable To Deposit All Items AFter 10 Tries.');
+        Exit;
+      end;
+    end;
+    Wait(100);
+  until (B >= 10);
+  if (MultipleOres and (R_CountItem(ItemIDs[0]) > 0) and (R_CountItem(ItemIDs[1]) > 0)) or (R_CountItem(ItemIDs[0]) > 0) then
+    Exit
+  else if (B >= 10) then
+    EndScript('Unable To Open The Bank.')
+  else if (C >= 10) then
+    EndScript('Unable To Withdraw Item Number ' + ToStr(A))
+  else
+    EndScript('Banking Error.');
+end;
+
+Function R_ClickFurnace(var Fail: string): Boolean;
+
+var
+  Furnace: TRSObject;
+  Timer, Tries, Attempts: Integer;
+  FPoint: TPoint;
+  FArray: TPointArray;
+  FBox: TBox;
+  Bar: TInvItem;
+  P1: TVariantArray;
+
+begin
+  Result := False;
+  MarkTime(Timer);
+  if MakeBalls then
+    if (R_CountItem(MouldID) > 0) and R_ItemExists(Players[CurrentPlayer].Integers[2], Bar) then
+    begin
+      P1 := [Bar.Slot];
+      while (not ItemActivated(Bar.Slot)) and (Attempts < 10) do
+      begin
+        Inc(Attempts);
+        DebugIt('Attempt ' + ToStr(Attempts) + ' To Click On The Mould.');
+        R_ClickItemBy(Players[CurrentPlayer].Integers[2], 'Use');
+        WaitFuncEx('ItemActivated',P1,100,1500);
+      end;
+      if not ItemActivated(Bar.Slot) then
+      begin
+        Fail := 'Bar Not Activated After ' + ToStr(Attempts) + ' Attempts.';
+        Exit;
+      end;
+    end else
+    begin
+      Fail := 'There Is No Ammo Mould Or Steel Bars In The Inventory.';
+      Exit;
+    end;
+  Tries := 0;
+  repeat
+    AntiRandoms;
+    if R_FindObject(11666, OBJ_INTERACTABLE, 5, Furnace) then
+    begin
+      DebugIt('Found The Furnace Using Reflection.');
+      FPoint := R_TileToMS(Furnace.Tile, 0);
+      FBox := IntToBox(FPoint.x - 60, FPoint.y - 60, FPoint.x + 10, FPoint.y + 10);
+      FArray := TPAFromBox(FBox);
+      FPoint := FArray[Random(High(FArray))];
+      if PointInBox(FPoint, MSBox) then
+        MMouse(FPoint.x,Fpoint.y,0,0);
+    end else
+      Inc(Tries);
+    Wait(100);
+  until R_WaitUpText('urnace',1000) or (TimeFromMark(Timer) >= 10000) or (Tries >= 1000);
+  if R_IsUptext('urnace') then
+  begin
+    ClickMouse2(True);
+    Result := R_WaitCrossHairColor(CROSSHAIR_RED, 1000);
+  end else if (Tries >= 1000) then
+    Fail := 'Unable To Find The Furnace Using Reflection After ' + ToStr(Tries) + ' Tries.'
+  else
+    Fail := 'Unable To Click The Furnace.';
+end;
+
+Function R_FindButton(var Comp: TInterfaceComponent): Boolean;
+
+var
+  Comp2: TInterfaceComponent;
+  I: Integer;
+  Search: string;
+
+begin
+  Result := False;
+  for I := 14 to 27 do
+  begin
+    Comp := R_GetInterFaceComponent(905, I, 57);
+    Comp2 := R_GetInterFaceComponent(905, I, 56);
+    Search := lowercase(Players[CurrentPlayer].Strings[1]);
+    if MakeBalls then
+      Search := 'ball';
+    Result := (pos(search,lowercase(Comp.Text)) > 0) or (Comp2.ID = Players[CurrentPlayer].Integers[6]);
+    if Result then
+      Break;
+  end;
+end;
+
+Function R_ClickButton(var Fail: string): Boolean;
+
+var
+  P1: TVariantArray;
+  Bar: TInterfaceComponent;
+  Button: TInterfaceChild;
+  Timer: Integer;
+
+begin
+  P1 := [905];
+  if not WaitFuncEx('R_ValidInterface', P1, 100, 5000) then
+    Fail := 'Couldn''t Get Smelting Interface.'
+  else begin
+    MarkTime(Timer);
+    while (not R_FindButton(Bar)) and (5000 >= TimeFromMark(Timer)) do
+      Wait(100);
+    Result := 5000 >= TimeFromMark(Timer);
+    if Result then
+    begin
+      Button := R_GetInterfaceChild(905, (Bar.ParentID - 59310080));
+      Result := (not Button.IsHidden);
+      R_ClickInterface(R_GetInterfaceChild(905, (Bar.ParentID - 59310080)), 1)
+    end else
+      Fail := 'Could Not Find The Correct Bar OnScreen.';
+  end;
+end;
+
+Function R_WaitSmelt(var Fail: string): Boolean;
+
+var
+  Count, Count2, OldCount, OldCount2, Timer, WaitTime, Item: Integer;
+  MultipleOres, DoIt, Good: Boolean;
+  Balls: TInvItem;
+  Name: string;
+
+begin
+  Result := False;
+  WaitTime := 6000;
+  if MakeBalls then
+    WaitTime := 10000;
+  AntiRandoms;
+  MultipleOres := Players[CurrentPlayer].Booleans[0];
+  OldCount2 := -1;
+  Count2 := -1;
+  repeat
+    AntiBan;
+    OldCount := R_CountItem(Players[CurrentPlayer].Integers[2]);
+    DoIt := OldCount > 0;
+    if DoIt and MultipleOres then
+    begin
+      OldCount2 := R_CountItem(Players[CurrentPlayer].Integers[3]);
+      DoIt := OldCount2 > 0;
+    end;
+    MarkTime(Timer);
+    if DoIt then
+    repeat
+      Count := R_CountItem(Players[CurrentPlayer].Integers[2]);
+      if MultipleOres then
+        Count2 := R_CountItem(Players[CurrentPlayer].Integers[3]);
+      if (OldCount > Count) or (OldCount2 > Count2) then
+        Break;
+      Wait(315);
+      Good := (OldCount > Count) or (OldCount2 > Count2);
+    until (TimeFromMark(Timer) >= WaitTime) or (Good);
+    if MakeBalls then
+    begin
+      R_ItemExists(Players[CurrentPlayer].Integers[6], Balls);
+      Item := Balls.StackSize;
+      Name := 'Cannonballs';
+    end else
+    begin
+      Item := R_CountItem(Players[CurrentPlayer].Integers[6]);
+      Name := Players[CurrentPlayer].Strings[1] + ' Bar(s).';
+    end;
+    DebugIt('Smelted ' + ToStr(Item) + ' ' + Name);
+    AntiRandoms;
+    DoIt := not DoIt;
+    if not DoIt then
+      DoIt := (Count = 0) or (Count2 = 0) or (OldCount = 0) or (OldCount2 = 0);
+  until (DoIt) or (TimeFromMark(Timer) >= WaitTime);
+  if (Count = 0) or (Count2 = 0) or (OldCount = 0) or (OldCount2 = 0) then
+  begin
+    DebugIt('Finished Smelting.');
+    Result := True;
+  end else
+  begin
+    DebugIt('Error While Smelting.');
+    Fail := 'Error While Waiting For Bars.';
+  end;
+end;
+
+Procedure SmeltIt;
+
+var
+  Error: string;
+  I: Integer;
+  Balls: TInvItem;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure SmeltIt.');
+  AntiRandoms;
+  Maintenance;
+  Error := '';
+  Players[CurrentPlayer].Integers[11] := R_GetSkillLevel(SKILL_SMITHING);
+  for i := 0 to 8 do
+  if R_ClickFurnace(Error) then
+    if R_ClickButton(Error) then
+      if R_WaitSmelt(Error) then
+      begin
+        stats_IncVariable('Loads Done', 1);
+        if MakeBalls then
+        begin
+          R_ItemExists(Players[CurrentPlayer].Integers[6], Balls);
+          IncEx(Players[CurrentPlayer].Integers[7], Balls.StackSize);
+        end else
+          IncEx(Players[CurrentPlayer].Integers[7], R_CountItem(Players[CurrentPlayer].Integers[6]));
+        if not MakeBalls then
+          stats_IncVariable(Players[CurrentPlayer].Strings[2], R_CountItem(Players[CurrentPlayer].Integers[6]));
+        stats_IncVariable('Total EXP Gained', Round(Players[CurrentPlayer].Extendeds[0] * R_CountItem(Players[CurrentPlayer].Integers[6])));
+        stats_IncVariable('Smithing EXP (Gained)', Round(Players[CurrentPlayer].Extendeds[0] * R_CountItem(Players[CurrentPlayer].Integers[6])));
+        Stats_IncVariable('Total Levels Gained', (R_GetSkillLevel(SKILL_SMITHING) - Players[CurrentPlayer].Integers[11]));
+        IncEx(Players[CurrentPlayer].Integers[9], (R_GetSkillLevel(SKILL_SMITHING) - Players[CurrentPlayer].Integers[11]));
+        Players[CurrentPlayer].Integers[11] := R_GetSkillLevel(SKILL_SMITHING);
+        if MakeBalls then
+          Stats_IncVariable(Players[CurrentPlayer].Strings[2], Balls.StackSize)
+        else if not Players[CurrentPlayer].Booleans[0] then
+          Stats_IncVariable(Players[CurrentPlayer].Strings[3], 28)
+        else case lowercase(Players[CurrentPlayer].Strings[1]) of
+          'bronze':
+          begin
+            Stats_IncVariable(Players[CurrentPlayer].Strings[3], 14);
+            Stats_IncVariable(Players[CurrentPlayer].Strings[4], 14);
+          end;
+          'steel':
+          begin
+            Stats_IncVariable(Players[CurrentPlayer].Strings[3], 9);
+            Stats_IncVariable(Players[CurrentPlayer].Strings[4], 18);
+          end;
+          'mithril':
+          begin
+            Stats_IncVariable(Players[CurrentPlayer].Strings[3], 5);
+            Stats_IncVariable(Players[CurrentPlayer].Strings[4], 20);
+          end;
+          'adamant':
+          begin
+            Stats_IncVariable(Players[CurrentPlayer].Strings[3], 4);
+            Stats_IncVariable(Players[CurrentPlayer].Strings[4], 24);
+          end;
+          'rune':
+          begin
+            Stats_IncVariable(Players[CurrentPlayer].Strings[3], 3);
+            Stats_IncVariable(Players[CurrentPlayer].Strings[4], 24);
+          end;
+        end;
+        Break;
+      end;
+  if I > 8 then
+    EndScript(Error);
+end;
+
+Procedure FinalReport;
+
+begin
+  StatsIn;
+  if not (Success) then
+  begin
+    Closer := True;
+    EndScript('Manually Terminated.');
+    ClearRSCanvas(SMART_Canvas.canvas);
+    Report(True);
+  end;
+  StatsIn;
+end;
+
+Function Goals: Boolean;
+
+var
+  Time, Item: Integer;
+
+begin
+  Result := False;
+  Time := Players[CurrentPlayer].Integers[0];
+  Item := Players[CurrentPlayer].Integers[1];
+  if (Item <> 0) then
+  begin
+    if (Item <= Players[CurrentPlayer].Integers[7]) then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end else if (Time <> 0) then
+    if (Time <= (Players[CurrentPlayer].Worked/60000)) then
+      Result := True;
+end;
+
+{*******************************************************************************
+
+Procedure ScriptUpdate;
+Description: Checks For Newer Versions Of The Script And Updates The Script If
+             The User Sets The Update Constant;
+Authors: Harry. Eddited By Me.
+
+*******************************************************************************}
+
+procedure ScriptUpdate;
+var ClientUp, Neifile:integer;
+    OnlineVersion, NewScript, NeiFeilNennen:string;
+begin
+  if AutoUpdate then
+  begin
+    Writeln('Checking For An Updated Script Version.');
+    ClientUp := InitializeHTTPClient(False, False);
+    SetHTTPUserAgent(ClientUp,'Simba ' + Version);
+    OnlineVersion := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/GSVersion.simba');
+    Writeln(onlineversion);
+    Writeln(Version)
+    FreeHTTPClient(ClientUp);
+    if (Length(trim(OnlineVersion)) = 3) and (trim(OnlineVersion) > Version) then
+    begin
+      WriteLn('Newer Version Found Online. Will AutoUpdate.');
+      ClientUp := InitializeHTTPClient(False,False);
+      SetHTTPUserAgent(ClientUp,'Simba');
+      NewScript := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/GoSmelter%20-%20Current.simba');
+      FreeHTTPClient(ClientUp);
+
+      NeiFeilNennen := ScriptPath + 'Go Smelter v'+trim(OnlineVersion)+'.simba';
+      Neifile := Rewritefile(NeiFeilNennen, true);
+      try
+        WriteFileString(Neifile, NewScript);
+      except
+        begin
+          WriteLn('Fatal Error Writing To '+NeiFeilNennen+'!');
+          TerminateScript;
+        end;
+      end;
+      CloseFile(Neifile);
+      WriteLn('New Script Downloaded And Saved To '+NeiFeilNennen+' !! Please Use This!');
+      TerminateScript;
+    end else
+    begin
+      if (Length(trim(OnlineVersion)) <> 3) then
+      begin
+        WriteLn('Version Checking Failed. You Might Be Outdated.');
+        Writeln('Please Check For The Latest Version Online.');
+      end else
+        WriteLn('You Have The Latest Version Of The Script!');
+      Exit;
+    end;
+  end else
+    WriteLn('!!!!! Not Checking For The Latest Version Of This Script. You Might Be Outdated!');
+end;
+
+Procedure MainLoop;
+
+var
+  I: Integer;
+
+begin
+  LoadVariables;
+  for I := 0 to (High(Players)) do
+  begin
+    Players[I].Strings[0] := '';
+    Players[I].BoxRewards := ['XP'];
+    Players[I].WorldInfo := [Players[I].Member, -1, False];
+    LoadBars(I);
+  end;
+
+  Moddy := False;
+  Success := False;
+  Closer := False;
+  repeat
+    if (not R_LoggedIn) and LoginPlayer then
+      stats_IncVariable('Total Logins', 1)
+    else if not Moddy then
+      PlayerStartTime := GetSystemTime
+    else
+      Moddy := False;
+
+    if R_LoggedIn then
+      Maintenance;
+
+    while (not Goals) and (R_LoggedIn) do
+    begin
+      if DeathWalk then
+        Continue;
+
+      if TakeBreaks then
+        BreakHandler(BreakAfter, BreakTime, BreakRandomness, BreakRandomness);
+
+      if R_LoggedIn then
+        Players[CurrentPlayer].Integers[11] := R_GetSkillLevel(SKILL_SMITHING);
+
+      WalkTo('Bank');
+      StatsIn;
+      Report(False);
+      Maintenance;
+      BankItems;
+      WalkTo('Furnace');
+      SmeltIt;
+
+      DeathWalk;
+    end;
+    if (Goals) and (R_LoggedIn) then
+    begin
+      EndScript('Reached All Set Goals.');
+      NextPlayer(False);
+    end else if not Goals then
+      NextPlayer(Players[CurrentPlayer].Strings[0] = '')
+    else
+      NextPlayer(False);
+  until (AllPlayersInactive);
+  Writeln('Script Succesfully Ran.');
+  Report(True);
+  Success := True;
+end;
+
+Begin
+  ClearDebug;
+
+  ScriptUpdate;
+
+  Smart_Members := MEMBERS;
+  Smart_Server := WORLD;
+  Smart_Signed := SIGNED;
+
+  SetupReflection;
+  Smart_SetupDebug;
+
+  if (Stats_UserID = '') then
+    SetupSRLStats(147, 'YagoScripts', 'abcdefghij')
+  else
+    SetupSRLStats(147, Stats_UserID, Stats_Password);
+
+  DeclarePlayers;
+  AddonTerminate('FinalReport');
+  MainLoop;
+End.
