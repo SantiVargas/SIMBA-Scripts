@@ -1,0 +1,1159 @@
+{$DEFINE SMART}
+{$i Srl\Srl.Scar}
+{$i Reflection\Reflection.Simba}
+{$i SRL\SRL\misc\paintsmart.scar}
+{$i SRL\SRL\Skill\Magic.scar}
+{$i SRL\SRL\Misc\Stats.Simba}
+
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+{-------------------------------Drink Buyer v0.2-------------------------------}
+{-----------------------------------By: Yago-----------------------------------}
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+{-------Official Thread: http://villavu.com/forum/showthread.php?t=64734-------}
+{------------------------------------------------------------------------------}
+
+
+//Please Fill In Below Information.
+{------------------------------------------------------------------------------}
+                         {---Setup Instructions---}
+
+{1. Fill In The Username, Password, And Bank Pin -- Leave Blank If None        }
+{2. Set The Amount Of Time To Run The Script (In Minutes).                     }
+{3. Set The Number Of Drinks To Buy.                                           }
+{4. If Necessary Change HowManyPlayers.                                        }
+{5. Start Out With Necessary Coins In Inventory. Script Will Not Withdraw.     }
+{6. (Optional) Enter SRL-Stats UserID And Password.                            }
+
+const
+                         {---SMART Setup Constants---}
+  WORLD = 40;                     // Choose What Server To Load. Set As 0 For Random Sever.
+  MEMBERS = False;                // Member's Server? True = Members. False = Non-Members.
+  SIGNED = True;                  // Signed Client?
+                         {---------------------------}
+
+  Stats_UserID    = '';           // SRL Stats ID (Leave Blank If None).
+  Stats_Password  = '';           // SRL Stats Password (Leave Blank If None).
+
+  DebugScript     = False;        // Set To True To Debug The Script.
+  PaintToSMART    = True;         // Set To True To Paint On SMART.
+  AutoUpdate      = True;         // Check For And Download The Newest Script Version.
+
+  TakeBreaks      = False;        // Set To True To Take Breaks.
+  BreakAfter      = 60;           // Time To Run Script Before Taking A Break.
+  BreakTime       = 15;           // How Long To Take A Break (Plus Randomness).
+  BreakRandomness = 5;            // Randomness Used When Breaking.
+
+  AntiBanAmount   = 5;            // 0 = 0% Chance. 100 = 100%. 10 = About 10%.
+
+Procedure DeclarePlayers;         // Must Fill In.
+
+begin
+  HowManyPlayers := 1;            // The Number Of Players You Have.
+  NumberOfPlayers(HowManyPlayers);// Don't Change.
+  CurrentPlayer := 0;             // Player To Start With (0 is the first).
+
+  with Players[0] do
+  begin
+    Name           := '';         // Username.
+    Pass           := '';         // Password.
+    Active         := True;       // Leave Alone.
+    Pin            := '';         // Bank Pin. Leave Blank If None.
+    Member         := False;      // True = Members Account & False = Non-Members Account.
+    Integers[0]    := 0;          // Time To Run The Script In Minutes. Set To Zero To Run Forever.
+    Integers[1]    := 0;          // Amount Of Drinks To Buy. Set 0 To Buy An Infinite Amount.
+    Strings[1]     := 'MB'        // Drink To Buy. 'MB' = Mind Bomb, 'AA' = Asgarnian Ale, 'DS' = Dwarven Stout
+  end;
+
+{               Remove The Brackets And Change HowManyPlayers
+  with Players[1] do
+  begin
+    Name           := '';         // Username.
+    Pass           := '';         // Password.
+    Active         := True;       // Leave Alone.
+    Pin            := '';         // Bank Pin. Leave Blank If None.
+    Member         := False;      // True = Members Account & False = Non-Members Account.
+    Integers[0]    := 0;          // Time To Run The Script In Minutes. Set To Zero To Run Forever.
+    Integers[1]    := 0;          // Amount Of Drinks To Buy. Set 0 To Buy An Infinite Amount.
+    Strings[1]     := 'AA'        // Drink To Buy. 'MB' = Ming Bomb, 'AA' = Asgarnian Ale, 'DS' = Dwarven Stout
+  end;
+
+}
+
+end;
+
+               {Don't Change Anything Below This Line.}
+{------------------------------------------------------------------------------}
+//Disregard this...
+//((Int))0-TimeToRun,1-AmountToDo,2-DrinksBought,3-ProfitPerDrink,4-TotalProfit
+//((Str))0-Reason
+
+const
+//Global Constants. Do Not Touch.
+  Version = '0.3  ';
+
+var
+//Global Variables. Do Not Touch.
+  BreakRounds, NextBreak, TotalBreaks, AAPrice, MBPrice, DSPrice: Integer;
+  DWPath: TTileArray;
+  DWBox: TBox;
+  Success, Closer, Moddy: Boolean;
+  InvCoins: TInvItem;
+
+Function GetPrice(ID: Integer): Integer;
+
+var
+  ClientUp: Integer;
+  OnlinePrice: string;
+
+begin
+  ClientUp := InitializeHTTPClient(False, False);
+  SetHTTPUserAgent(ClientUp,'Me');
+  OnlinePrice := GetHTTPPage(ClientUp,'http://services.runescape.com/m=itemdb_rs/viewitem.ws?obj=' + ToStr(ID));
+  FreeHTTPClient(ClientUp);
+  OnlinePrice := Trim(OnlinePrice);
+  Result := StrToInt(Replace(Between('Current guide price:</b> ', '<br><br>', OnlinePrice),#10, ''));
+end;
+
+Procedure LoadVariables;
+
+begin
+  WriteLn('Running Procedure LoadVariables.');
+  DWPath := [Point(3222, 3217), Point(3234, 3217), Point(3229, 3230),
+             Point(3222, 3241), Point(3213, 3246), Point(3202, 3246),
+             Point(3190, 3246), Point(3178, 3250), Point(3166, 3254),
+             Point(3152, 3254), Point(3139, 3255), Point(3127, 3256),
+             Point(3116, 3256), Point(3104, 3257), Point(3092, 3261),
+             Point(3081, 3267), Point(3071, 3274), Point(3058, 3275),
+             Point(3045, 3275), Point(3033, 3276), Point(3021, 3275),
+             Point(3010, 3281), Point(3006, 3292), Point(3004, 3303),
+             Point(3006, 3313), Point(3006, 3325), Point(3007, 3337),
+             Point(3007, 3350), Point(2999, 3359), Point(2992, 3369),
+             Point(2982, 3376), Point(2970, 3379), Point(2958, 3381),
+             Point(2949, 3375), Point(2945, 3370)];
+  DWBox := IntToBox(2938,3383,2962,3350);
+  AAPrice := (GetPrice(1905) - 3);
+  MBPrice := (GetPrice(1907) - 3);
+  DSPrice := (GetPrice(1913) - 3);
+  WriteLn('The Price Of AA Is ' + ToStr(AAPrice) + '.');
+  WriteLn('The Price Of MB Is ' + ToStr(MBPrice) + '.');
+  WriteLn('The Price Of DS Is ' + ToStr(DSPrice) + '.');
+  if AAPrice = -1 then
+    AAPrice := (125 - 3) ;
+  if MBPrice = -1 then
+    MBPrice := (110 - 3);
+  if DSPrice = -1 then
+    DSPrice := (90 - 3);
+end;
+
+Procedure LoadFoods(I: Integer);
+
+begin
+  WriteLn('Running Procedure LoadFoods(' + ToStr(I) +').');
+  if (Players[I].Integers[0] >= 1) and (Players[I].Integers[0] <= 10) then
+  begin
+
+    case (Players[I].Integers[0]) of
+
+    1: //Shrimps
+    begin
+      Players[I].Strings[1] := 'Shrimps';
+      Players[I].Integers[3] := 315;
+      Players[I].Integers[5] := 317;
+      Players[I].Integers[6] := 30;
+      Players[I].Integers[8] := 7954;
+      Players[I].Strings[2] := 'Shrimp Cooked';
+      Players[I].Strings[3] := ('78DA6314606060106540011561CE0CFC409A1' +
+        '188FF8368901A050634C0042619A13C462920214E408D12901020A08' +
+        '60D4808115003B2471EBF1A001900033C');
+    end;
+
+    2: //Sardine
+    begin
+      Players[I].Strings[1] := 'Sardine';
+      Players[I].Integers[3] := 325;
+      Players[I].Integers[5] := 327;
+      Players[I].Integers[6] := 40;
+      Players[I].Integers[8] := 369;
+      Players[I].Strings[2] := 'Sardines Cooked';
+      Players[I].Strings[3] := ('78DA63FCCFC8C0B0148891C0A2DD8B18B8803' +
+        '44C94F10F90B512550D030313440EA68619C89F4F400D2F613500D65' +
+        'C06B9');
+    end;
+
+    3: //Anchovies
+    begin
+      Players[I].Strings[1] := 'Anchovies';
+      Players[I].Integers[3] := 319;
+      Players[I].Integers[5] := 321;
+      Players[I].Integers[6] := 30;
+      Players[I].Integers[8] := 323;
+      Players[I].Strings[2] := 'Anchovies Cooked';
+      Players[I].Strings[3] := ('78DA63BCC4C8C0B004889140404030032B908' +
+        '6893282D4AC4755C3C0C0049183A9B98D690E869AC740D65C026A4E0' +
+        '059F388B06B0D7E3500135209FE');
+    end;
+
+    4: //Herring
+    begin
+      Players[I].Strings[1] := 'Herring';
+      Players[I].Integers[3] := 347;
+      Players[I].Integers[5] := 345;
+      Players[I].Integers[6] := 50;
+      Players[I].Integers[8] := 357;
+      Players[I].Strings[2] := 'Herring Cooked';
+      Players[I].Strings[3] := ('78DA63AC61646090056224B071D54A300D136' +
+        '52C02B21451D5303030A1AAE905B22409A8E900B2F808A82921C29C7' +
+        'AC2EE010055A005BC');
+    end;
+
+    5: //Trout
+    begin
+      Players[I].Strings[1] := 'Trout';
+      Players[I].Integers[3] := 333;
+      Players[I].Integers[5] := 335;
+      Players[I].Integers[6] := 70;
+      Players[I].Integers[8] := 343;
+      Players[I].Strings[2] := 'Trout Cooked';
+      Players[I].Strings[3] := ('78DA63DCCCCCC03095910119CC983491811F4' +
+        '8C344195701D5CC4555C3C0C0049183A9D90654339B08359D04D41C0' +
+        '4AA6925A0E628504D0F7E3500269109AF');
+    end;
+
+    6: //Pike
+    begin
+      Players[I].Strings[1] := 'Pike';
+      Players[I].Integers[3] := 351;
+      Players[I].Integers[5] := 349;
+      Players[I].Integers[6] := 80;
+      Players[I].Integers[8] := 343;
+      Players[I].Strings[2] := 'Pike Cooked';
+      Players[I].Strings[3] := ('78DA63AC6164609001622490559DC5C005A44' +
+        '1A2FF41743190A582AA868181094CC244191B802C45026A407689125' +
+        '0D307640913505382E9667435008AD8060D');
+    end;
+
+    7: //Salmon
+    begin
+      Players[I].Strings[1] := 'Salmon';
+      Players[I].Integers[3] := 329;
+      Players[I].Integers[5] := 331;
+      Players[I].Integers[6] := 90;
+      Players[I].Integers[8] := 343;
+      Players[I].Strings[2] := 'Salmon Cooked';
+      Players[I].Strings[3] := ('78DA63AC646460580EC448606E72040317908' +
+        '689321602596B51D530303041E4606AEA80AC3504D4140359CB08A8A' +
+        '902B2161050D306642DC4AF060059E70847');
+    end;
+
+    8: //Tuna
+    begin
+      Players[I].Strings[1] := 'Tuna';
+      Players[I].Integers[3] := 361;
+      Players[I].Integers[5] := 359;
+      Players[I].Integers[6] := 100;
+      Players[I].Integers[8] := 367;
+      Players[I].Strings[2] := 'Tuna Cooked';
+      Players[I].Strings[3] := ('78DA63AC6764609001622430A9A787810B488' +
+        '344FF83E806204B05550D03031398848932160159CA04D480CC1125A' +
+        '0A60BC81222A0A607C892C2AF0600D8660681');
+    end;
+
+    9: //Lobster
+    begin
+      Players[I].Strings[1] := 'Lobster';
+      Players[I].Integers[3] := 379;
+      Players[I].Integers[5] := 377;
+      Players[I].Integers[6] := 120;
+      Players[I].Integers[8] := 381;
+      Players[I].Strings[2] := 'Lobster Cooked';
+      Players[CurrentPlayer].Strings[3] := ('78DA6314636060106640018916720CFC409A1' +
+        '188FF83685E2021C3800698C0242394C7C801240408A8510212AC04D' +
+        '480DCA348408D2C9010C1AF0600C89202D5');
+    end;
+
+    10: //Swordsfish
+    begin
+      Players[I].Strings[1] := 'Swordfish';
+      Players[I].Integers[3] := 373;
+      Players[I].Integers[5] := 371;
+      Players[I].Integers[6] := 140;
+      Players[I].Integers[8] := 375;
+      Players[I].Strings[2] := 'Swordfish Cooked';
+      Players[I].Strings[3] := ('78DA638C60626098CFC8800C1616AD66E007D' +
+        '23051461FA09AF5A86A18189820723035C940FE0A026A3281FC4504D' +
+        '40412A10664D71CFC6A004BDA07F0');
+    end;
+    end;
+  end
+  else
+  begin
+    WriteLn('Invalid Food Type Value In Declare Players.');
+    TerminateScript;
+  end;
+end;
+
+Procedure DebugIt(Text: string);
+
+begin
+  if DebugScript then
+    Writeln(Text);
+end;
+
+{*******************************************************************************
+function WaitFuncEx(Func: string; var Args: TVariantArray; WaitPerLoop, MaxWait: integer): boolean;
+By: Dgby714
+Description: Calls Func with arguments Args every WaitPerLoop milliseconds
+    for a max of MaxWait milliseconds.
+    Func can return any basic types (boolean, string, integer).
+    boolean: Returns it.
+    string: Returns true if string equals 'true'.
+    integer: Returns true unless it equals 0.
+*******************************************************************************}
+function WaitFuncEx(Func: string; var Args: TVariantArray; WaitPerLoop, MaxWait: integer): boolean;
+var
+  T: integer;
+  Temp: variant;
+begin
+  T := GetSystemTime + MaxWait;
+  while (GetSystemTime < T) do
+  begin
+    Temp := CallProc(Func, Args);
+    if (not (VarType(Temp) = varString)) then
+      Temp := ToStr(Temp);
+    Result := StrToBoolDef(Temp, False);
+    if (Result) then
+      Exit;
+    Wait(WaitPerLoop);
+  end;
+end;
+
+Procedure AntiBan;
+
+var
+  I, AB: Integer;
+
+begin
+  if (AntiBanAmount <> 0) then
+  begin
+    if (AntiBanAmount > 100) then
+      AB := 100
+    else
+      AB := AntiBanAmount;
+    I := Random(9 * (Ceil(100/AB))) + 1;
+    case I of
+      1: RandomRClick;
+      2: PickUpMouse;
+      3: RandomAngle(True);
+      4: RandomMovement;
+      5: BoredHuman;
+      6..10: SleepAndMoveMouse(1000);
+    end;
+    if (I <= 10) then
+      DebugIt('Ran AntiBan Procedure.');
+  end;
+  GameTab(tab_Inv);
+end;
+
+Procedure AntiRandoms;
+
+begin
+  R_FindRandoms;
+  LampSkill := 'Woodcutting';
+  FindLamp('Woodcutting');
+  if FindMod then
+    Moddy := True;
+  GameTab(tab_Inv);
+  DebugIt('Ran Procedure AntiRandoms.');
+end;
+
+Procedure Maintenance;
+
+begin
+  if not (LoggedIn) then
+    Exit;
+
+  AntiRandoms;
+  DebugIt('Fixing Compass.');
+  if R_MakeCompass('n') then
+  begin
+    DebugIt('Compass is North.');
+    SetAngle(True);
+    DebugIt('Camara angle is at highest.');
+    SetRun(True);
+    DebugIt('Run is enabled (on).');
+  end
+  else
+  begin
+    DebugIt('Failed To Fix The Compass.');
+  end;
+end;
+
+procedure PrintOnSmart(TP: TStringArray; Placement: TPoint; Colour, Shadow: integer);//Not Mines Just Editted
+var
+ mx, my, Pic, I, B, H, TPH, Numb, Chat, BG: Integer;
+ TTP: TPointArray;
+begin
+  SmartSetDebug(True);
+  ClearRSCanvas(SMART_Canvas.canvas);
+  GetClientDimensions(mx,my);
+  Pic := BitmapFromString(mx,my,'');
+  TPH := High(TP);
+  for I := 0 to TPH do
+  begin
+    TTP := LoadTextTPA(TP[i], SmallChars, H);
+    for B := 0 to High(TTP) do
+    begin
+      Numb := ((I + 1) * 13);
+      FastSetPixel(Pic, TTP[b].x + 1, TTP[b].y + Numb + 1, Shadow);
+      FastSetPixel(Pic, TTP[b].x + 1, TTP[b].y + Numb, Colour);
+      FastSetPixel(Pic, TTP[b].x, TTP[b].y + Numb, Colour);
+    end;
+  end;
+  BG := CreateBitMap(185, 165);
+  FastDrawClear(BG, 255);
+  Chat := CreateBitmap(181, 161);
+  FastDrawClear(Chat, 3421229);
+  SetTransparentColor(Pic, 0);
+  FastDrawTransparent(Placement.x,Placement.y,Pic,Chat);
+  FastDrawTransparent(2, 2, Chat, BG);
+  DrawBitmap(BG,SMART_Canvas.Canvas, 330, 4);
+  FreeBitmap(BG);
+  FreeBitmap(Pic);
+  FreeBitmap(Chat);
+end;
+
+procedure PaintIt(Drinks, DPH, TDrinks, Profit, PPH, TProfit: Integer; Final: Boolean);
+
+var
+  Paint: TStringArray;
+
+begin
+  if Final then
+  begin
+    Paint :=
+      ['Drink Buyer ~~ Yago',
+      'Version: ' + ToStr(Version),
+      'Total Players: ' + ToStr(HowManyPlayers),
+      'Total Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+      'Total Breaks Taken: ' + ToStr(TotalBreaks),
+      'Total Drinks Bought: ' + ToStr(TDrinks),
+      'Total Profit: ' + ToStr(TProfit)];
+  end else
+  begin
+    Paint :=
+      ['Drink Buyer ~~ Yago',
+      'Version: ' + ToStr(Version),
+      'Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+      'Player: ' + Players[CurrentPlayer].Name,
+      '    Time Active        : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Short),
+      '    Drinks Bought   : ' + ToStr(Drinks),
+      '    Drinks Per Hour: ' + ToStr(DPH),
+      '    Profit                  : ' + ToStr(Profit),
+      '    Profit Per Hour : ' + ToStr(PPH),
+      '',
+      ''];
+      if TakeBreaks then
+      begin
+        Paint[9] := '    Breaks Taken       : ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)';
+        Paint[10] := 'Next Break: Around ' + ToStr(NextBreak) + ' Minutes';
+      end;
+  end;
+  PrintOnSmart(Paint, Point(5, 0), 16052962, 16052962);
+end;
+
+{*******************************************************************************
+Procedure BreakHandler(BreakIn, BreakFor, randBreakIn, randBreakFor: Integer): Boolean;
+By: Echo_. Editted A Bit By Me.
+Description: Takes brakes according to the minute values entered
+*******************************************************************************}
+Procedure BreakHandler(BreakIn, BreakFor, randBreakIn, randBreakFor: Integer);
+var
+  w, x, y, z, counter: Integer;
+  Paint: TStringArray;
+begin
+  if not LoggedIn then Exit;
+
+  w := (BreakIn * 60000);
+  x := (BreakFor * 60000);
+  y := RandomRange(-randBreakIn * 60000, randBreakIn * 60000);
+  z := RandomRange(-randBreakFor * 60000, randBreakFor * 60000);
+
+  if (PlayersActive = 1) then
+    if (GetTimeRunning < ((w) + (y) + BreakRounds)) then
+      NextBreak := Ceil(((w + BreakRounds) - GetTimeRunning)/60000)
+    else if (GetTimeRunning > ((w) + (y) + BreakRounds)) then
+    begin
+      R_Flag;
+      Writeln('Taking A Break For About ' + IntToStr(Round((x + z)/60000)) + ' Minutes.');
+      AntiRandoms;
+      ClosePinScreen;
+      CloseWindow;
+      CloseBank;
+      Logout;
+      repeat
+        if PaintToSmart then
+        begin
+          Paint :=
+          ['Drink Buyer ~~ Yago',
+          'Version: ' + ToStr(Version),
+          'Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+          'Player: ' + Players[CurrentPlayer].Name,
+          '    Time Active          : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Short),
+          '    Drinks Bought     : ' + ToStr(Players[CurrentPlayer].Integers[2]),
+          '    Profit                    : ' + ToStr(Players[CurrentPlayer].Integers[4]),
+          'Breaks Taken: ' + ToStr(Players[CurrentPlayer].Integers[10]),
+          'Break: ' + ToStr((Ceil((x + z)/60000)) - Counter) + ' Mins. Left'];
+          PrintOnSmart(Paint, Point(5,0), 16052962, 16052962);
+        end;
+        Inc(Counter);
+        Wait(60000);
+        Writeln('Waited ' + ToStr(Counter) + ' Minutes Out Of ' + ToStr(Ceil((x + z)/60000)) + ' Minutes.');
+      until (Counter >= Ceil((x + z)/60000));
+      Writeln('Logging in.');
+      SwitchToPlayer(CurrentPlayer, True);
+      AntiRandoms;
+      IncEx(BreakRounds, w + y);
+      Inc(TotalBreaks);
+      Inc(Players[CurrentPlayer].Integers[10]);
+      NextBreak := Ceil(((w + BreakRounds) - GetTimeRunning)/60000);
+      Writeln('The Next Break Will Occur In Around ' + IntToStr(NextBreak) + ' Minutes.');
+    end;
+
+  if (PlayersActive > 1) then
+    if (GetTimeRunning < ((w) + (y) + BreakRounds)) then
+      NextBreak := Ceil((w + BreakRounds) - GetTimeRunning)
+    else if (GetTimeRunning > ((w) + (y) + BreakRounds)) then
+    begin
+      R_Flag;
+      Writeln('Taking A Break. Switching To The Next Player.');
+      Logout;
+      IncEx(BreakRounds, w + y);
+      Inc(TotalBreaks);
+      Inc(Players[CurrentPlayer].Integers[10]);
+      NextPlayer(True);
+      Maintenance;
+    end;
+end;
+
+Procedure Report(Final: boolean);
+
+Var
+  Drinks, TotalDrinks, I, Profit, TotalProfit: Integer;
+  DrinksPerHour, ProfitPerHour: LongInt;
+
+begin
+  for I := 0 to (High(Players)) do
+  begin
+    IncEx(TotalDrinks, Players[I].Integers[2]);
+    IncEx(TotalProfit, Players[I].Integers[4]);
+  end;
+  Writeln('[Report]');
+  SRLRandomsReport;
+  WriteLn('*----------------------------------------------------------------*');
+  WriteLn('|                        Drink Buyer v ' + Padr(ToStr(Version), 26) + '|');
+  WriteLn('|                            By: Yago                            |');
+  WriteLn('|----------------------------------------------------------------|');
+  WriteLn('|                    Overall Progress Report                     |');
+  WriteLn('|                                                                |');
+  WriteLn('|           ' + Padr('Total Players : ' + ToStr(HowManyPlayers), 53) + '|');
+  WriteLn('|           ' + Padr('Total Time Running : ' + MsToTime(GetTimeRunning, Time_Abbrev), 53) + '|');
+  if TakeBreaks then
+    Writeln('|             ' + Padr('Total Breaks Taken : ' + ToStr(TotalBreaks) + ' Breaks', 51) + '|');
+  WriteLn('|           ' + Padr('Total Drinks Bought : ' + ToStr(TotalDrinks), 53) + '|');
+  WriteLn('|           ' + Padr('Total Profit : ' + ToStr(TotalProfit), 53) + '|');
+  WriteLn('|                                                                |');
+  WriteLn('|----------------------------------------------------------------|');
+
+  if (Final) then
+    for I := 0 to (High(Players)) do
+    begin
+      Drinks := Players[I].Integers[2];
+      Profit := Players[I].Integers[3] * Drinks;
+      DrinksPerHour := Ceil((Drinks * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      ProfitPerHour := Ceil((Profit * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      WriteLn('|                       Individual Report:                       |');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Player[' + ToStr(I) + ']: ' + Players[I].Name, 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Reason : ' + Players[I].Strings[0], 60) + '|');
+      WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(I), Time_Abbrev), 60) + '|');
+      if TakeBreaks then
+        Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[I].Integers[10]) + ' Break(s)', 58) + '|');
+      WriteLn('|    ' + Padr('Drink Type : ' + Players[I].Strings[1], 60) + '|');
+      WriteLn('|    ' + Padr('Drinks Bought : ' + ToStr(Drinks), 60) + '|');
+      WriteLn('|    ' + Padr('Drinks Per Hour : ' + ToStr(DrinksPerHour), 60) + '|');
+      WriteLn('|    ' + Padr('Profit Per Drink : ' + ToStr(Players[I].Integers[3]), 60) + '|');
+      Writeln('|    ' + Padr('Profit : ' + ToStr(Profit), 60) + '|');
+      WriteLn('|    ' + Padr('Profit Per Hour : ' + ToStr(ProfitPerHour), 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('*----------------------------------------------------------------*');
+    end
+  else
+  begin
+    if not (LoggedIn) then
+      Exit;
+
+    Drinks := Players[CurrentPlayer].Integers[2];
+    Profit := Players[CurrentPlayer].Integers[3] * Drinks;
+    DrinksPerHour := Ceil((Drinks * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    ProfitPerHour := Ceil((Profit * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    WriteLn('|                       Individual Report:                       |');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Player[' + ToStr(CurrentPlayer) + ']: ' + Players[CurrentPlayer].Name, 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Reason : ' + Players[CurrentPlayer].Strings[0], 60) + '|');
+    WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Abbrev), 60) + '|');
+    if TakeBreaks then
+      Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)', 58) + '|');
+    WriteLn('|    ' + Padr('Drink Type : ' + Players[CurrentPlayer].Strings[1], 60) + '|');
+    Writeln('|    ' + Padr('Drinks Bought : ' + ToStr(Drinks), 60) + '|');
+    Writeln('|    ' + Padr('Drinks Per Hour : ' + ToStr(DrinksPerHour), 60) + '|');
+    WriteLn('|    ' + Padr('Profit Per Drink : ' + ToStr(Players[CurrentPlayer].Integers[3]), 60) + '|');
+    Writeln('|    ' + Padr('Profit : ' + ToStr(Profit), 60) + '|');
+    WriteLn('|    ' + Padr('Profit Per Hour : ' + ToStr(ProfitPerHour), 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('*----------------------------------------------------------------*');
+  end;
+  Writeln('[/Report]');
+
+  if PaintToSMART then
+    PaintIt(Drinks, DrinksPerHour, TotalDrinks, Profit, ProfitPerHour, TotalProfit, Final);
+end;
+
+Procedure StatsIn;
+
+begin
+  if (stats_Commit) then
+    Writeln('Stats Committed.')
+  else
+    DebugIt('Unable To Commit Stats.');
+end;
+
+Procedure EndScript(Reason: string);
+
+begin
+  StatsIn;
+  AntiRandoms;
+  if not Closer then
+    Report(False);
+  Writeln('Termination Cause: ' + Reason);
+  Players[CurrentPlayer].Strings[0] := Reason;
+  if LoggedIn then
+  begin
+    if R_PinScreen then
+      ClosePinScreen;
+    if R_BankScreen then
+      CloseBank;
+  end else
+    Exit;
+  AntiRandoms;
+  WriteLn('Logging Player Out.');
+  WaitFunc(@Logout, RandomRange(100, 200), 1000);
+end;
+
+Function TileOnMMWrap(X, Y: Integer): Boolean;
+begin
+  Result := R_TileOnMM(Point(X, Y));
+end;
+
+Function TeleWorked(WaitTime: Integer): Boolean;
+
+var
+  OriginalTile, NewTile: TTile;
+  Timer: Integer;
+
+begin
+  OriginalTile := R_GetMyPos;
+  MarkTime(Timer);
+  repeat
+    Wait(50);
+    NewTile := R_GetMyPos;
+  until(WaitTime <= TimeFromMark(Timer)) or (OriginalTile <> NewTile);
+  Result := (OriginalTile <> NewTile);
+end;
+
+Function DeathWalk: Boolean;
+
+var
+  Param1: TVariantArray;
+
+begin
+  if not LoggedIn then
+    Exit;
+
+  Result := False;
+
+  AntiRandoms;
+  if not R_SelfInBox(DWBox) then
+  begin
+    Writeln('Will Wait About 10 Seconds To Establish If Lost.');
+    Wait(10000);
+    if not R_SelfInBox(DWBox) then
+    begin
+      Writeln('In An Unknown Location. Will Begin Deathwalk.');
+      if (R_GetPlaneIndex = 0) then
+        if (R_WalkPathEx(DWPath, 2, 3, False)) then
+        begin
+          Writeln('Found Our Way Back To The Correct Location.');
+          Result := True;
+          Exit;
+        end else
+          DebugIt('Unable To Walk The Path.')
+      else
+        DebugIt('Not On Groud Level, Therefore Can''t Walk.');
+      AntiRandoms;
+      if TabExists(Tab_Magic) then
+      begin
+        WriteLn('Will Attempt To Teleport To Lumbridge.');
+        GameTab(Tab_Magic);
+        Param1 := ['Lumbridge Home Teleport', False];
+        if (WaitFuncEx('Cast', Param1, 500, 5000)) then
+        begin
+          AntiRandoms;
+          Writeln('Will Wait A Bit To Verify A Teleport.');
+          if TeleWorked(30000) then
+          begin
+            Maintenance;
+            if (R_WalkPathEx(DWPath, 2, 2, False)) then
+            begin
+              Writeln('Found Our Way Back To The Correct Location.');
+              Result := True;
+              Maintenance;
+              Exit;
+            end else
+              EndScript('Unable To Walk The Path.');
+          end else
+            EndScript('Not At Lumbridge After Home Teleport.');
+        end else
+          EndScript('Cannot Find The Home Teleport Button.');
+      end else
+        EndScript('Magic Tab Is Not Present. Cannot Attempt A Teleport.');
+    end;
+  end;
+end;
+
+Procedure WalkTo(Location: string);
+
+var
+  MainPath: TTileArray;
+  Fail: Integer;
+  InvertIt: Boolean;
+
+begin
+  if not LoggedIn then
+    Exit;
+
+  MainPath := [Point(2947, 3368), Point(2949, 3376), Point(2956, 3381), Point(2956, 3372)];
+
+  AntiRandoms;
+  RunEnergy(70);
+  InvertIt := False;
+  case lowercase(Location) of
+
+    'inn': DebugIt('Walking To The Inn.');
+
+    'bank':
+    begin
+      DebugIt('Walking To The Bank.');
+      InvertIt := True;
+    end;
+
+  end;
+
+  Fail := 0;
+  repeat
+    Inc(Fail);
+    DebugIt('Attempt #' + ToStr(Fail) + ' To Walk.');
+    if R_WalkPathEx(MainPath, 2, 2, InvertIt) then
+    begin
+      stats_IncVariable('Times Walked', 3);
+      Break;
+    end;
+  until (Fail >= 4);
+  if (Fail >= 4) then
+    EndScript('Unable To Walk To ' + Location + '.');
+end;
+
+Function Deposited: Boolean;
+
+begin
+  Result := R_ItemExists(995, InvCoins) and (R_InvCount = 1);
+end;
+
+Procedure BankItems;
+
+var
+  A, B, C: Integer;
+  P1: TVariantArray;
+
+begin
+  if not (LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure Bank.');
+  A := 0;
+  B := 0;
+  stats_IncVariable('Times Banked', 1);
+  begin
+    repeat
+      if not (LoggedIn) then
+        Exit;
+
+      Inc(B);
+      DebugIt('Attempt #' + IntToStr(B) + ' To Open The Bank. Will Stop After 10 Attempts Or After Successful.');
+      if R_OpenBankBooth then
+      begin
+        if R_PinScreen or PinScreen then
+        begin
+          C := 0;
+          repeat
+            InPin(Players[CurrentPlayer].Pin);
+            Inc(C);
+          until R_BankScreen or BankScreen or (C > 5 )
+          if (C > 5) then
+          begin
+            EndScript('BankPin Failed');
+            Exit;
+          end;
+        end;
+        R_DepositAllBut(995);
+        if (R_CountItemsBut(995) = 0) then
+        begin
+          DebugIt('Deposited All But Coins.');
+          if WaitFuncEx('Deposited', P1, 50, 5000) then
+            Break;
+        end else
+          EndScript('Could Not Deposit All The Necessary Items.');
+      end else
+        DebugIt('Unsuccessful In Opening The Bank. Will Try Again.');
+    until (B >= 10);
+    if (B >= 10) then
+      EndScript('Unable To Open The Bank.');
+  end;
+end;
+
+Procedure InvCheck;
+
+begin
+  DebugIt('Running InvCheck.');
+  if R_ItemExists(995, InvCoins) and (InvCoins.StackSize > 3) then
+    DebugIt(ToStr(InvCoins.StackSize) + ' Coins Left.')
+  else
+  begin
+    DebugIt('No Coins Left. Logging Out.');
+    AntiRandoms;
+    ClosePinScreen;
+    CloseWindow;
+    CloseBank;
+    Logout;
+  end;
+end;
+
+Function R_NPCChatText(Str: string; ParentID, ChildID: Integer): Boolean;
+
+begin
+  Result := (Pos(Str, R_GetInterfaceText(ParentID, ChildID)) > 0);
+end;
+
+Function R_ClickOption(ChildID: Integer): Boolean;
+
+var
+  ChildInterface: TInterfaceChild;
+
+begin
+  Result := False;
+  ChildInterface := R_GetInterfaceChild(232, ChildID);
+  if not ChildInterface.IsHidden then
+    R_ClickInterface(ChildInterface, 1);
+  Result := WaitFunc(@ClickToContinue, 50, 5000);
+end;
+
+Function WaitOnDrink(Amount: Integer): Boolean;
+
+begin
+  Result := Amount < InvCount;
+end;
+
+Function BuyDrink(Drink: string): Boolean;
+
+var
+  Emily: TNPC;
+  EPoint: TPoint;
+  Tries, Count, Child: Integer;
+  P1, P2, P3, P4, P5: TVariantArray;
+  Choice: string;
+
+begin
+  Result := False;
+
+  if not R_LoggedIn then
+    Exit;
+
+  Tries := 0;
+  P1 := ['Heya!', 241, 4];
+  P2 := ['serving?', 64, 4];
+  P3 := ['we''ve got', 242, 4];
+  case lowercase(Drink) of
+    'aa':
+    begin
+      Choice := 'please.';
+      Child := 2;
+    end;
+    'mb':
+    begin
+      Choice := 'I''ll try';
+      Child := 3;
+    end;
+    'ds':
+    begin
+      Choice := 'I have a';
+      Child := 4;
+    end;
+  end;
+  P4 := [Choice, 232, Child];
+  repeat
+    Count := R_InvCount;
+    P5 := [Count];
+    if R_FindNPC(736, False, Emily) then
+    begin
+      if (Emily.Tile <> Null_Tile) then
+      begin
+        EPoint := R_TileToMSEx(Emily.Tile, 0.5, 0.5, Emily.Height*3/4);
+        MMouse(EPoint.x, EPoint.y, 2, 2);
+        if R_WaitUptext('Emily', 1000) then
+        begin
+          ClickMouse2(true);
+          if R_WaitCrossHairColor(CROSSHAIR_RED, 1000) then
+            if WaitFuncEx('R_NPCChatText',P1,50,5000) and WaitFunc(@ClickToContinue, 50, 5000) then
+              if WaitFuncEx('R_NPCChatText',P2,50,5000) and WaitFunc(@ClickToContinue, 50, 5000) then
+                if WaitFuncEx('R_NPCChatText',P3,50,5000) and WaitFunc(@ClickToContinue, 50, 5000) then
+                  if WaitFuncEx('R_NPCChatText',P4,50,5000) and R_ClickOption(Child) then
+                    Result := WaitFuncEx('WaitOnDrink',P5,50,5000);
+        end;
+      end;
+    end else
+      Inc(Tries);
+  until (Result) or (Tries >= 10);
+  if (Tries >= 10) then
+    Result := False;
+end;
+
+Procedure FinalReport;
+
+begin
+  StatsIn;
+  if not (Success) then
+  begin
+    Closer := True;
+    EndScript('Manually Terminated.');
+    Report(True);
+    ClearRSCanvas(SMART_Canvas.canvas);
+  end;
+  StatsIn;
+end;
+
+Function Goals: Boolean;
+
+var
+  Time, Item: Integer;
+
+begin
+  Result := False;
+  Time := Players[CurrentPlayer].Integers[0];
+  Item := Players[CurrentPlayer].Integers[1];
+  if (Item <> 0) then
+    begin
+    if (Item <= Players[CurrentPlayer].Integers[2]) then
+      Result := True;
+      Exit;
+    end
+  else if (Time <> 0) then
+    if (Time <= (Players[CurrentPlayer].Worked/60000)) then
+      Result := True;
+end;
+
+{*******************************************************************************
+
+Procedure ScriptUpdate;
+Description: Checks For Newer Versions Of The Script And Updates The Script If
+             The User Sets The Update Constant;
+Authors: Harry. Eddited By Me.
+
+*******************************************************************************}
+
+procedure ScriptUpdate;
+var ClientUp, Neifile:integer;
+    OnlineVersion, NewScript, NeiFeilNennen:string;
+begin
+  if AutoUpdate then
+  begin
+    Writeln('Checking For An Updated Script Version.');
+    ClientUp := InitializeHTTPClient(False, False);
+    SetHTTPUserAgent(ClientUp,'Simba ' + Version);
+    OnlineVersion := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/DBVersion.simba');
+    Writeln(onlineversion);
+    Writeln(Version)
+    FreeHTTPClient(ClientUp);
+    if (Length(trim(OnlineVersion)) = 3) and (trim(OnlineVersion) > Version) then
+    begin
+      WriteLn('Newer Version Found Online. Will AutoUpdate.');
+      ClientUp := InitializeHTTPClient(False,False);
+      SetHTTPUserAgent(ClientUp,'Simba');
+      NewScript := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/Drink%20Buyer%20-%20Current.simba');
+      FreeHTTPClient(ClientUp);
+
+      NeiFeilNennen := ScriptPath + 'Drink Buyer v'+trim(OnlineVersion)+'.simba';
+      Neifile := Rewritefile(NeiFeilNennen, true);
+      try
+        WriteFileString(Neifile, NewScript);
+      except
+        begin
+          WriteLn('Fatal Error Writing To '+NeiFeilNennen+'!');
+          TerminateScript;
+        end;
+      end;
+      CloseFile(Neifile);
+      WriteLn('New Script Downloaded And Saved To '+NeiFeilNennen+' !! Please Use This!');
+      TerminateScript;
+    end else
+    begin
+      if (Length(trim(OnlineVersion)) <> 3) then
+      begin
+        WriteLn('Version Checking Failed. You Might Be Outdated.');
+        Writeln('Please Check For The Latest Version Online.');
+      end else
+        WriteLn('You Have The Latest Version Of The Script!');
+      Exit;
+    end;
+  end else
+    WriteLn('!!!!! Not Checking For The Latest Version Of This Script. You Might Be Outdated!');
+end;
+
+Procedure MainLoop;
+
+var
+  I: Integer;
+  StatDrink: string;
+
+begin
+  LoadVariables;
+  for I := 0 to (High(Players)) do
+  begin
+    Players[I].BoxRewards := ['XP'];
+    Players[I].WorldInfo := [Players[I].Member, -1, False];
+  end;
+
+  Moddy := False;
+  Success := False;
+  Closer := False;
+  repeat
+   if not (LoggedIn) and LoginPlayer then
+      stats_IncVariable('Total Logins', 1)
+    else if not Moddy then
+      PlayerStartTime := GetSystemTime
+    else
+      Moddy := False;
+
+    if LoggedIn then
+      Maintenance;
+
+    while not (Goals) and (LoggedIn) do
+      begin
+        if DeathWalk then
+          Continue;
+
+        if TakeBreaks then
+          BreakHandler(BreakAfter, BreakTime, BreakRandomness, BreakRandomness);
+
+        case lowercase(Players[CurrentPlayer].Strings[1]) of
+          'aa':
+          begin
+            Players[CurrentPlayer].Integers[3] := AAPrice;
+            StatDrink := 'Asgarian Ale Bought';
+          end;
+          'mb':
+          begin
+            Players[CurrentPlayer].Integers[3] := MBPrice;
+            StatDrink := 'Mind Bomb Bought';
+          end;
+          'ds':
+          begin
+            Players[CurrentPlayer].Integers[3] := DSPrice;
+            StatDrink := 'Dwarven Stout Bought';
+          end;
+        else
+          EndScript('Incorrect Drink Type In DeclarePlayers.');
+        end;
+
+        StatsIn;
+        Report(False);
+        AntiRandoms;
+        Maintenance;
+
+        WalkTo('Bank');
+        BankItems;
+        WalkTo('Inn');
+        AntiRandoms;
+
+        if not LoggedIn then
+          Break;
+
+        begin
+          repeat
+            InvCheck;
+            if BuyDrink(Players[CurrentPlayer].Strings[1]) then
+            begin
+              Inc(Players[CurrentPlayer].Integers[2]);
+              IncEx(Players[CurrentPlayer].Integers[4], Players[CurrentPlayer].Integers[3]);
+              stats_IncVariable('Coins Spent', 3);
+              stats_IncVariable(StatDrink, 1);
+            end;
+            AntiBan;
+            AntiRandoms;
+          until (not(LoggedIn)) or (R_InvFull);
+          if R_InvFull then
+            stats_IncVariable('Loads Done', 1)
+          else if not LoggedIn then
+            EndScript('No Coins Left.')
+          else
+            EndScript('Error Buying Drinks.');
+        end;
+
+        DeathWalk;
+      end;
+    if (Goals) and (LoggedIn) then
+    begin
+      EndScript('Reached All Set Goals.');
+      NextPlayer(False);
+    end else if not Goals then
+      NextPlayer(Players[CurrentPlayer].Strings[0] = '')
+    else
+      NextPlayer(False);
+  until (AllPlayersInactive);
+  Writeln('Script Succesfully Ran.');
+  Report(True);
+  Success := True;
+end;
+
+Begin
+  ClearDebug;
+
+  ScriptUpdate;
+
+  Smart_Members := MEMBERS;
+  Smart_Server := WORLD;
+  Smart_Signed := SIGNED;
+
+  if (Stats_UserID = '') then
+    SetupSRLStats(134, 'YagoScripts', 'abcdefghij')
+  else
+    SetupSRLStats(134, Stats_UserID, Stats_Password);
+
+  SetUpReflection;
+  SMART_SetupDebug;
+  DeclarePlayers;
+  AddonTerminate('FinalReport');
+  MainLoop;
+End.
