@@ -7,7 +7,7 @@
 
 {------------------------------------------------------------------------------}
 {------------------------------------------------------------------------------}
-{-------------------------------Drink Buyer v0.2-------------------------------}
+{-------------------------------Drink Buyer v0.3-------------------------------}
 {-----------------------------------By: Yago-----------------------------------}
 {------------------------------------------------------------------------------}
 {------------------------------------------------------------------------------}
@@ -91,7 +91,7 @@ end;
 
 const
 //Global Constants. Do Not Touch.
-  Version = '0.3  ';
+  Version = '0.3';
 
 var
 //Global Variables. Do Not Touch.
@@ -145,153 +145,6 @@ begin
     MBPrice := (110 - 3);
   if DSPrice = -1 then
     DSPrice := (90 - 3);
-end;
-
-Procedure LoadFoods(I: Integer);
-
-begin
-  WriteLn('Running Procedure LoadFoods(' + ToStr(I) +').');
-  if (Players[I].Integers[0] >= 1) and (Players[I].Integers[0] <= 10) then
-  begin
-
-    case (Players[I].Integers[0]) of
-
-    1: //Shrimps
-    begin
-      Players[I].Strings[1] := 'Shrimps';
-      Players[I].Integers[3] := 315;
-      Players[I].Integers[5] := 317;
-      Players[I].Integers[6] := 30;
-      Players[I].Integers[8] := 7954;
-      Players[I].Strings[2] := 'Shrimp Cooked';
-      Players[I].Strings[3] := ('78DA6314606060106540011561CE0CFC409A1' +
-        '188FF8368901A050634C0042619A13C462920214E408D12901020A08' +
-        '60D4808115003B2471EBF1A001900033C');
-    end;
-
-    2: //Sardine
-    begin
-      Players[I].Strings[1] := 'Sardine';
-      Players[I].Integers[3] := 325;
-      Players[I].Integers[5] := 327;
-      Players[I].Integers[6] := 40;
-      Players[I].Integers[8] := 369;
-      Players[I].Strings[2] := 'Sardines Cooked';
-      Players[I].Strings[3] := ('78DA63FCCFC8C0B0148891C0A2DD8B18B8803' +
-        '44C94F10F90B512550D030313440EA68619C89F4F400D2F613500D65' +
-        'C06B9');
-    end;
-
-    3: //Anchovies
-    begin
-      Players[I].Strings[1] := 'Anchovies';
-      Players[I].Integers[3] := 319;
-      Players[I].Integers[5] := 321;
-      Players[I].Integers[6] := 30;
-      Players[I].Integers[8] := 323;
-      Players[I].Strings[2] := 'Anchovies Cooked';
-      Players[I].Strings[3] := ('78DA63BCC4C8C0B004889140404030032B908' +
-        '6893282D4AC4755C3C0C0049183A9B98D690E869AC740D65C026A4E0' +
-        '059F388B06B0D7E3500135209FE');
-    end;
-
-    4: //Herring
-    begin
-      Players[I].Strings[1] := 'Herring';
-      Players[I].Integers[3] := 347;
-      Players[I].Integers[5] := 345;
-      Players[I].Integers[6] := 50;
-      Players[I].Integers[8] := 357;
-      Players[I].Strings[2] := 'Herring Cooked';
-      Players[I].Strings[3] := ('78DA63AC61646090056224B071D54A300D136' +
-        '52C02B21451D5303030A1AAE905B22409A8E900B2F808A82921C29C7' +
-        'AC2EE010055A005BC');
-    end;
-
-    5: //Trout
-    begin
-      Players[I].Strings[1] := 'Trout';
-      Players[I].Integers[3] := 333;
-      Players[I].Integers[5] := 335;
-      Players[I].Integers[6] := 70;
-      Players[I].Integers[8] := 343;
-      Players[I].Strings[2] := 'Trout Cooked';
-      Players[I].Strings[3] := ('78DA63DCCCCCC03095910119CC983491811F4' +
-        '8C344195701D5CC4555C3C0C0049183A9D90654339B08359D04D41C0' +
-        '4AA6925A0E628504D0F7E3500269109AF');
-    end;
-
-    6: //Pike
-    begin
-      Players[I].Strings[1] := 'Pike';
-      Players[I].Integers[3] := 351;
-      Players[I].Integers[5] := 349;
-      Players[I].Integers[6] := 80;
-      Players[I].Integers[8] := 343;
-      Players[I].Strings[2] := 'Pike Cooked';
-      Players[I].Strings[3] := ('78DA63AC6164609001622490559DC5C005A44' +
-        '1A2FF41743190A582AA868181094CC244191B802C45026A407689125' +
-        '0D307640913505382E9667435008AD8060D');
-    end;
-
-    7: //Salmon
-    begin
-      Players[I].Strings[1] := 'Salmon';
-      Players[I].Integers[3] := 329;
-      Players[I].Integers[5] := 331;
-      Players[I].Integers[6] := 90;
-      Players[I].Integers[8] := 343;
-      Players[I].Strings[2] := 'Salmon Cooked';
-      Players[I].Strings[3] := ('78DA63AC646460580EC448606E72040317908' +
-        '689321602596B51D530303041E4606AEA80AC3504D4140359CB08A8A' +
-        '902B2161050D306642DC4AF060059E70847');
-    end;
-
-    8: //Tuna
-    begin
-      Players[I].Strings[1] := 'Tuna';
-      Players[I].Integers[3] := 361;
-      Players[I].Integers[5] := 359;
-      Players[I].Integers[6] := 100;
-      Players[I].Integers[8] := 367;
-      Players[I].Strings[2] := 'Tuna Cooked';
-      Players[I].Strings[3] := ('78DA63AC6764609001622430A9A787810B488' +
-        '344FF83E806204B05550D03031398848932160159CA04D480CC1125A' +
-        '0A60BC81222A0A607C892C2AF0600D8660681');
-    end;
-
-    9: //Lobster
-    begin
-      Players[I].Strings[1] := 'Lobster';
-      Players[I].Integers[3] := 379;
-      Players[I].Integers[5] := 377;
-      Players[I].Integers[6] := 120;
-      Players[I].Integers[8] := 381;
-      Players[I].Strings[2] := 'Lobster Cooked';
-      Players[CurrentPlayer].Strings[3] := ('78DA6314636060106640018916720CFC409A1' +
-        '188FF83685E2021C3800698C0242394C7C801240408A8510212AC04D' +
-        '480DCA348408D2C9010C1AF0600C89202D5');
-    end;
-
-    10: //Swordsfish
-    begin
-      Players[I].Strings[1] := 'Swordfish';
-      Players[I].Integers[3] := 373;
-      Players[I].Integers[5] := 371;
-      Players[I].Integers[6] := 140;
-      Players[I].Integers[8] := 375;
-      Players[I].Strings[2] := 'Swordfish Cooked';
-      Players[I].Strings[3] := ('78DA638C60626098CFC8800C1616AD66E007D' +
-        '23051461FA09AF5A86A18189820723035C940FE0A026A3281FC4504D' +
-        '40412A10664D71CFC6A004BDA07F0');
-    end;
-    end;
-  end
-  else
-  begin
-    WriteLn('Invalid Food Type Value In Declare Players.');
-    TerminateScript;
-  end;
 end;
 
 Procedure DebugIt(Text: string);
@@ -1049,7 +902,7 @@ begin
   Success := False;
   Closer := False;
   repeat
-   if not (LoggedIn) and LoginPlayer then
+   if not (R_LoggedIn) and LoginPlayer then
       stats_IncVariable('Total Logins', 1)
     else if not Moddy then
       PlayerStartTime := GetSystemTime
@@ -1059,7 +912,7 @@ begin
     if LoggedIn then
       Maintenance;
 
-    while not (Goals) and (LoggedIn) do
+    while not (Goals) and (R_LoggedIn) do
       begin
         if DeathWalk then
           Continue;
@@ -1123,7 +976,7 @@ begin
 
         DeathWalk;
       end;
-    if (Goals) and (LoggedIn) then
+    if (Goals) and (R_LoggedIn) then
     begin
       EndScript('Reached All Set Goals.');
       NextPlayer(False);
