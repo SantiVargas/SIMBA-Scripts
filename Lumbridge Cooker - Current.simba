@@ -1,0 +1,1439 @@
+{$DEFINE SMART}
+{$i Srl\Srl.Scar}
+{$i SRL\SRL\misc\paintsmart.scar}
+{$i Reflection\Reflection.Simba}
+{$i SRL\SRL\Skill\Magic.scar}
+{$i SRL\SRL\Misc\Stats.Simba}
+
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+{----------------------------Lumbridge Cooker v1.7-----------------------------}
+{-----------------------------------By: Yago-----------------------------------}
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+{-------Official Thread: http://villavu.com/forum/showthread.php?t=62594-------}
+{------------------------------------------------------------------------------}
+{------------------------------------------------------------------------------}
+
+                           {---Setup Instructions---}
+
+{1. Fill In The Username, Password, And Bank Pin -- Leave Blank If None...     }
+{2. Choose The Food Type To Cook.                                              }
+{3. Set The Amount Of Time To Run The Script (In Minutes).                     }
+{4. Set The Number Of Raw Food To Cook.                                        }
+{5. (Optional) Enter SRL-Stats UserID And Password.                            }
+{6. If Necessary Change HowManyPlayers.                                        }
+
+const
+                         {----SMART Setup Constants----}
+  WORLD = 40;                      // Choose What Server To Load. Set As 0 For Random Sever.
+  MEMBERS = False;                 // Member's Server? True = Members. False = Non-Members.
+  SIGNED = True;                   // Signed Client?
+                         {-----------------------------}
+
+  Stats_UserID    = '';            // SRL Stats ID (Leave Blank If None).
+  Stats_Password  = '';            // SRL Stats Password (Leave Blank If None).
+
+  DebugScript     = False;         // Set To True To Debug The Script.
+  PaintToSMART    = True;          // Set To True To Paint On SMART.
+  AutoUpdate      = True;          // Check For And Download The Newest Script Version.
+
+  TakeBreaks      = False;         // Set To True To Take Breaks.
+  BreakAfter      = 60;            // Time To Run Script Before Taking A Break.
+  BreakTime       = 15;            // How Long To Take A Break (Plus Randomness).
+  BreakRandomness = 5;             // Randomness Used When Breaking.
+
+  AntiBanAmount   = 5;             // 0 = 0% Chance. 100 = 100%. 5 = About 5.5% Per Bar.
+
+                         {-------Declare Players-------}
+Procedure DeclarePlayers;
+
+begin
+  HowManyPlayers := 1;             // The Number Of Players You Have.
+  NumberOfPlayers(HowManyPlayers); // Don't Change.
+  CurrentPlayer := 0;              // Player To Start With (0 is the first).
+
+  with Players[0] do
+  begin
+    Name           := '';          // Username.
+    Pass           := '';          // Password.
+    Active         := True;        // Leave Alone.
+    Pin            := '';          // Bank Pin. Leave Blank If None.
+    Member         := False;       // True = Members Account & False = Non-Members Account.
+    Integers[0]    := 9;           // Food Type. Look Below. Default Is Lobsters. List Below.
+//1 = Shrimps, 2 = Sardines, 3 = Anchovies, 4 = Herring, 5 = Trout, 6 = Pike, 7 = Salmon, 8 = Tuna, 9 = Lobster, 10 = Swordfish.
+    Integers[1]    := 0;           // Amount Of Raws To Cook. Set To Zero To Cook Until You Run Out.
+    Integers[2]    := 0;           // Time To Run The Script In Minutes... 120 Mins = 2 Hours. Set To Zero To Run Forever.
+  end;
+
+//To Add More Players, Remove The Brackets...
+
+  {
+  with Players[1] do
+  begin
+    Name           := '';          // Username.
+    Pass           := '';          // Password.
+    Active         := True;        // Leave Alone.
+    Pin            := '';          // Bank Pin. Leave Blank If None.
+    Member         := False;       // True = Members Account & False = Non-Members Account.
+    Integers[0]    := 9;           // Food Type. Look Below. Default Is Lobsters. List Below.
+//1 = Shrimps, 2 = Sardines, 3 = Anchovies, 4 = Herring, 5 = Trout, 6 = Pike, 7 = Salmon, 8 = Tuna, 9 = Lobster, 10 = Swordfish.
+    Integers[1]    := 0;           // Amount Of Raws To Cook. Set To Zero To Cook Until You Run Out.
+    Integers[2]    := 0;           // Time To Run The Script In Minutes... 120 Mins = 2 Hours. Set To Zero To Run Forever.
+  end;
+  }
+
+end;
+
+               {Don't Change Anything Below This Line.}
+{------------------------------------------------------------------------------}
+//Disregard this...
+//((Int))0-FoodType,1-#ToCook,2-TimeToRun,3-CookedID,4-#OfRawsCooked,5-RawID,
+//6-Factor,7-Loads,9-LvlsGained,10-BreakCount,11-Startlvl
+//((Str))0-Reason,1-FoodName,2-StatsVar
+
+const
+//Global Constants. Do Not Touch.
+  Version = '1.7';
+
+var
+//Global Variables. Do Not Touch.
+  Stats, BreakRounds, TotalBreaks, NextBreak: Integer;
+  ToKitchen, DWPath: TTileArray;
+  Success, Closer, Moddy: Boolean;
+  DWBox: TBox;
+
+Procedure LoadVariables;
+
+begin
+  WriteLn('Running Procedure LoadVariables.');
+  LampSkill := 'Cooking';
+  SetLength(ToKitchen, 3);
+  ToKitchen[0] := Point(3206, 3208); //Point By The Staircase
+  ToKitchen[1] := Point(3212, 3214); //Point In The Kitchen
+  ToKitchen[2] := Point(3209, 3220); //Point In The Bank
+  DWPath := [Point(3222, 3217), Point(3215, 3223), Point(3215, 3217),
+            Point(3215, 3210)];
+  DWBox := IntToBox(3202,3226,3221,3204);
+end;
+
+Procedure LoadFoods(I: Integer);
+
+begin
+  WriteLn('Running Procedure LoadFoods(' + ToStr(I) +').');
+  if (Players[I].Integers[0] >= 1) and (Players[I].Integers[0] <= 10) then
+  case (Players[I].Integers[0]) of
+
+    1: //Shrimps
+    begin
+      Players[I].Strings[1] := 'Shrimps';
+      Players[I].Integers[3] := 315;
+      Players[I].Integers[5] := 317;
+      Players[I].Integers[6] := 30;
+      Players[I].Strings[2] := 'Shrimp Cooked';
+    end;
+
+    2: //Sardine
+    begin
+      Players[I].Strings[1] := 'Sardine';
+      Players[I].Integers[3] := 325;
+      Players[I].Integers[5] := 327;
+      Players[I].Integers[6] := 40;
+      Players[I].Strings[2] := 'Sardines Cooked';
+    end;
+
+    3: //Anchovies
+    begin
+      Players[I].Strings[1] := 'Anchovies';
+      Players[I].Integers[3] := 319;
+      Players[I].Integers[5] := 321;
+      Players[I].Integers[6] := 30;
+      Players[I].Strings[2] := 'Anchovies Cooked';
+    end;
+
+    4: //Herring
+    begin
+      Players[I].Strings[1] := 'Herring';
+      Players[I].Integers[3] := 347;
+      Players[I].Integers[5] := 345;
+      Players[I].Integers[6] := 50;
+      Players[I].Strings[2] := 'Herring Cooked';
+    end;
+
+    5: //Trout
+    begin
+      Players[I].Strings[1] := 'Trout';
+      Players[I].Integers[3] := 333;
+      Players[I].Integers[5] := 335;
+      Players[I].Integers[6] := 70;
+      Players[I].Strings[2] := 'Trout Cooked';
+    end;
+
+    6: //Pike
+    begin
+      Players[I].Strings[1] := 'Pike';
+      Players[I].Integers[3] := 351;
+      Players[I].Integers[5] := 349;
+      Players[I].Integers[6] := 80;
+      Players[I].Strings[2] := 'Pike Cooked';
+    end;
+
+    7: //Salmon
+    begin
+      Players[I].Strings[1] := 'Salmon';
+      Players[I].Integers[3] := 329;
+      Players[I].Integers[5] := 331;
+      Players[I].Integers[6] := 90;
+      Players[I].Strings[2] := 'Salmon Cooked';
+    end;
+
+    8: //Tuna
+    begin
+      Players[I].Strings[1] := 'Tuna';
+      Players[I].Integers[3] := 361;
+      Players[I].Integers[5] := 359;
+      Players[I].Integers[6] := 100;
+      Players[I].Strings[2] := 'Tuna Cooked';
+    end;
+
+    9: //Lobster
+    begin
+      Players[I].Strings[1] := 'Lobster';
+      Players[I].Integers[3] := 379;
+      Players[I].Integers[5] := 377;
+      Players[I].Integers[6] := 120;
+      Players[I].Strings[2] := 'Lobster Cooked';
+    end;
+
+    10: //Swordsfish
+    begin
+      Players[I].Strings[1] := 'Swordfish';
+      Players[I].Integers[3] := 373;
+      Players[I].Integers[5] := 371;
+      Players[I].Integers[6] := 140;
+      Players[I].Strings[2] := 'Swordfish Cooked';
+    end;
+  end else
+  begin
+    WriteLn('Invalid Food Type Value In Declare Players For Player(' + ToStr(I) + ').');
+    TerminateScript;
+  end;
+end;
+
+Procedure DebugIt(Text: string);
+
+begin
+  if DebugScript then
+    Writeln(Text);
+end;
+
+{*******************************************************************************
+function WaitFuncEx(Func: string; var Args: TVariantArray; WaitPerLoop, MaxWait: integer): boolean;
+By: Dgby714
+Description: Calls Func with arguments Args every WaitPerLoop milliseconds
+    for a max of MaxWait milliseconds.
+    Func can return any basic types (boolean, string, integer).
+    boolean: Returns it.
+    string: Returns true if string equals 'true'.
+    integer: Returns true unless it equals 0.
+*******************************************************************************}
+function WaitFuncEx(Func: string; var Args: TVariantArray; WaitPerLoop, MaxWait: integer): boolean;
+var
+  T: integer;
+  Temp: variant;
+begin
+  T := GetSystemTime + MaxWait;
+  while (GetSystemTime < T) do
+  begin
+    Temp := CallProc(Func, Args);
+    if (not (VarType(Temp) = varString)) then
+      Temp := ToStr(Temp);
+    Result := StrToBoolDef(Temp, False);
+    if (Result) then
+      Exit;
+    Wait(WaitPerLoop);
+  end;
+end;
+
+Procedure AntiBan;
+
+var
+  I, AB: Integer;
+
+begin
+  if (AntiBanAmount <> 0) then
+  begin
+    if (AntiBanAmount > 100) then
+      AB := 100
+    else
+      AB := AntiBanAmount;
+    I := Random(9 * (Ceil(100/AB))) + 1;
+    case I of
+      1: RandomRClick;
+      2,3:
+        begin
+          HoverSkill('Cooking', False);
+          SleepAndMoveMouse(1000);
+        end;
+      4: PickUpMouse;
+      5: RandomAngle(True);
+      6: RandomMovement;
+      7: BoredHuman;
+      8..10: SleepAndMoveMouse(1000);
+    end;
+    if (I <= 10) then
+      DebugIt('Ran AntiBan Procedure.');
+  end;
+  R_GameTab(RTAB_INVENTORY);
+end;
+
+Procedure AntiRandoms;
+
+begin
+  R_FindRandoms;
+  Moddy := FindMod;
+  R_GameTab(RTAB_INVENTORY);
+  DebugIt('Ran Procedure AntiRandoms.');
+end;
+
+Procedure Maintenance;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  AntiRandoms;
+  DebugIt('Fixing Compass.');
+  if R_MakeCompass('n') then
+  begin
+    DebugIt('Compass is North.');
+    R_SetCameraAngle(100);
+    DebugIt('Camara angle is at highest.');
+    R_SetRun(True);
+    DebugIt('Run is enabled (on).');
+  end else
+  begin
+    DebugIt('Failed To Fix The Compass.');
+  end;
+end;
+
+procedure PrintOnSmart(TP: TStringArray; Placement: TPoint; Colour, Shadow: integer);//Not Mines Just Editted
+var
+ mx, my, Pic, I, B, H, TPH, Numb, Chat, BG: Integer;
+ TTP: TPointArray;
+ Canvas: TCanvas;
+begin
+  SmartSetDebug(True);
+  ClearRSCanvas(SMART_Canvas.canvas);
+  GetClientDimensions(mx,my);
+  Pic := BitmapFromString(mx,my,'');
+  TPH := High(TP);
+  for I := 0 to TPH do
+  begin
+    TTP := LoadTextTPA(TP[i], SmallChars, H);
+    for B := 0 to High(TTP) do
+    begin
+      Numb := ((I + 1) * 13);
+      FastSetPixel(Pic, TTP[b].x + 1, TTP[b].y + Numb + 1, Shadow);
+      FastSetPixel(Pic, TTP[b].x + 1, TTP[b].y + Numb, Colour);
+      FastSetPixel(Pic, TTP[b].x, TTP[b].y + Numb, Colour);
+    end;
+  end;
+  BG := CreateBitMap(240, 300);
+  FastDrawClear(BG, 255);
+  Chat := CreateBitmap(236, 296);
+  FastDrawClear(Chat, 3421229);
+  Canvas := TCANVAS.Create;
+  Canvas.Handle := SmartGetDebugDC;
+  SetTransparentColor(Pic, 0);
+  FastDrawTransparent(Placement.x,Placement.y,Pic,Chat);
+  FastDrawTransparent(2, 2, Chat, BG);
+  DrawBitmap(BG,Canvas, 0, 0);
+  FreeBitmap(BG);
+  FreeBitmap(Pic);
+  FreeBitmap(Chat);
+end;
+
+procedure PaintIt(Raw, Fact, Exps, Load, LPH, RPH, EPH, TExp, TRaws, TLvls: Integer; Final: Boolean);
+
+var
+  Paint: TStringArray;
+
+begin
+  if Final then
+  begin
+    Paint :=
+      ['Lumbridge Cooker ~~ Yago',
+      '',
+      'Version: ' + ToStr(Version),
+      '',
+      '',
+      'Total Players: ' + ToStr(HowManyPlayers),
+      '',
+      'Total Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+      '',
+      'Total Food Cooked: ' + ToStr(TRaws),
+      '',
+      'Total Experience Gained: ' + ToStr(TExp),
+      '',
+      'Total Levels Gained: ' + ToStr(TLvls),
+      '',
+      '',
+      '',
+      '']
+    if TakeBreaks then
+      Paint[15] := 'Breaks Taken: ' + ToStr(TotalBreaks);
+  end else
+  begin
+    Paint :=
+      ['Lumbridge Cooker ~~ Yago',
+      '',
+      'Version: ' + ToStr(Version),
+      '',
+      '',
+      'Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+      '',
+      'Player[' + (ToStr(CurrentPlayer)) + ']                         : ' + Players[CurrentPlayer].Name,
+      '    Time Active                     : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Short),
+      '    Food Type                        : ' + Players[CurrentPlayer].Strings[1],
+      '    Loads Done                     : ' + ToStr(Load),
+      '    Loads Per Hour              : ' + ToStr(LPH),
+      '    Raws Cooked                   : ' + ToStr(Raw),
+      '    Raws Per Hour                : ' + ToStr(RPH),
+      '    Experience Gained        : ' + ToStr(Exps),
+      '    Experience Per Hour     : ' + ToStr(EPH),
+      '    Cooking Level                 : ' + ToStr(Players[CurrentPlayer].Integers[11]) + ' (+' + ToStr(Players[CurrentPlayer].Integers[9]) +')',
+      '',
+      '',
+      '',
+      '',
+      ''];
+    if TakeBreaks then
+    begin
+      Paint[17] := '    Breaks Taken                  : ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)';
+      Paint[20] := 'Next Break : In Around ' + ToStr(NextBreak) + ' Minutes';
+    end;
+  end;
+  PrintOnSmart(Paint, Point(5, 0), 16052962, 16052962);
+end;
+
+{*******************************************************************************
+Procedure BreakHandler(BreakIn, BreakFor, randBreakIn, randBreakFor: Integer): Boolean;
+By: Echo_. Editted A Bit By Me.
+Description: Takes brakes according to the minute values entered
+*******************************************************************************}
+Procedure BreakHandler(BreakIn, BreakFor, randBreakIn, randBreakFor: Integer);
+var
+  w, x, y, z, counter: Integer;
+  Paint: TStringArray;
+begin
+  if not R_LoggedIn then Exit;
+
+  w := (BreakIn * 60000);
+  x := (BreakFor * 60000);
+  y := RandomRange(-randBreakIn * 60000, randBreakIn * 60000);
+  z := RandomRange(-randBreakFor * 60000, randBreakFor * 60000);
+
+  if (PlayersActive = 1) then
+    if (GetTimeRunning < ((w) + (y) + BreakRounds)) then
+      NextBreak := Ceil(((w + BreakRounds) - GetTimeRunning)/60000)
+    else if (GetTimeRunning > ((w) + (y) + BreakRounds)) then
+    begin
+      R_Flag;
+      Writeln('Taking A Break For About ' + IntToStr(Round((x + z)/60000)) + ' Minutes.');
+      Logout;
+      repeat
+        if PaintToSmart then
+        begin
+          Paint :=
+          ['Lumbridge Cooker ~~ Yago',
+          '',
+          'Version: ' + ToStr(Version),
+          '',
+          '',
+          'Total Players: ' + ToStr(HowManyPlayers),
+          'Total Time Running: ' + MsToTime(GetTimeRunning, Time_Short),
+          '',
+          'Player: ' + Players[CurrentPlayer].Name,
+          '',
+          'Break:',
+          'Breaks Taken: ' + ToStr(Players[CurrentPlayer].Integers[10]),
+          'Waited ' + ToStr(Counter) + ' Minute(s) Out Of ' + ToStr(Ceil((x + z)/60000)) + ' Minutes.'];
+          PrintOnSmart(Paint, Point(5,0), 16052962, 16052962);
+        end;
+        Inc(Counter);
+        Wait(60000);
+        Writeln('Waited ' + ToStr(Counter) + ' Minutes Out Of ' + ToStr(Ceil((x + z)/60000)) + ' Minutes.');
+      until (Counter >= Ceil((x + z)/60000));
+      Writeln('Logging in.');
+      SwitchToPlayer(CurrentPlayer, True);
+      AntiRandoms;
+      IncEx(BreakRounds, w + y);
+      Inc(TotalBreaks);
+      Inc(Players[CurrentPlayer].Integers[10]);
+      NextBreak := Ceil(((w + BreakRounds) - GetTimeRunning)/60000);
+      Writeln('The Next Break Will Occur In Around ' + IntToStr(NextBreak) + ' Minutes.');
+    end;
+
+  if (PlayersActive > 1) then
+    if (GetTimeRunning < ((w) + (y) + BreakRounds)) then
+      NextBreak := Ceil((w + BreakRounds) - GetTimeRunning)
+    else if (GetTimeRunning > ((w) + (y) + BreakRounds)) then
+    begin
+      R_Flag;
+      Writeln('Taking A Break. Switching To The Next Player.');
+      Logout;
+      IncEx(BreakRounds, w + y);
+      Inc(TotalBreaks);
+      Inc(Players[CurrentPlayer].Integers[10]);
+      NextPlayer(True);
+      Maintenance;
+    end;
+end;
+
+Procedure Report(Final: boolean);
+
+Var
+  Exp, Raws, Factor, Loads, TotalEXP, TotalRaws, TotalLevels, I: Integer;
+  ExpPerHour, RawsPerHour, LoadsPerHour: Integer;
+
+begin
+  for I := 0 to (High(Players)) do
+  begin
+    IncEx(TotalEXP, (Players[I].Integers[4] * Players[I].Integers[6]));
+    IncEx(TotalRaws, Players[I].Integers[4]);
+    IncEx(TotalLevels, Players[I].Integers[9]);
+  end;
+  Writeln('[Report]');
+  SRLRandomsReport;
+  WriteLn('*----------------------------------------------------------------*');
+  WriteLn('|                     Lumbridge Cooker v' + Padr(ToStr(Version), 25) + '|');
+  WriteLn('|                            By: Yago                            |');
+  WriteLn('|----------------------------------------------------------------|');
+  WriteLn('|                    Overall Progress Report                     |');
+  WriteLn('|                                                                |');
+  WriteLn('|           ' + Padr('Total Players : ' + IntToStr(HowManyPlayers), 53) + '|');
+  WriteLn('|           ' + Padr('Total Time Running : ' + MsToTime(GetTimeRunning, Time_Abbrev), 53) + '|');
+  if TakeBreaks then
+    Writeln('|             ' + Padr('Total Breaks Taken : ' + ToStr(TotalBreaks) + ' Breaks', 51) + '|');
+  WriteLn('|           ' + Padr('Total Food Cooked : ' + IntToStr(TotalRaws), 53) +'|');
+  WriteLn('|           ' + Padr('Total Experience Gained : ' + IntToStr(TotalEXP) + ' Experience', 53) + '|');
+  WriteLn('|           ' + Padr('Total Levels Gained : ' + IntToStr(TotalLevels), 53) + '|');
+  Writeln('|                                                                |');
+  WriteLn('|----------------------------------------------------------------|');
+
+  if (Final) then
+    for I := 0 to (High(Players)) do
+    begin
+      Raws := Players[I].Integers[4];
+      Factor := Players[I].Integers[6];
+      Exp := (Raws * Factor);
+      Loads := Players[I].Integers[7];
+      RawsPerHour := Ceil((Raws * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      ExpPerHour := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      LoadsPerHour := Ceil((Loads * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      WriteLn('|                       Individual Report:                       |');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Player[' + ToStr(I) + ']: ' + Players[I].Name, 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Reason : ' + Players[I].Strings[0], 60) + '|');
+      WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(I), Time_Abbrev), 60) + '|');
+      if TakeBreaks then
+        Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[I].Integers[10]) + ' Break(s)', 58) + '|');
+      WriteLn('|    ' + Padr('FoodType : ' + Players[I].Strings[1], 60) + '|');
+      WriteLn('|    ' + Padr('Loads Done : ' + ToStr(Loads), 60) + '|');
+      WriteLn('|    ' + Padr('Loads Per Hour : ' + ToStr(LoadsPerHour), 60) + '|');
+      WriteLn('|    ' + Padr('Raw ' + Players[I].Strings[1] + ' Cooked : ' + ToStr(Raws), 60) + '|');
+      WriteLn('|    ' + Padr('Raws Per Hour : ' + ToStr(RawsPerHour), 60) + '|');
+      WriteLn('|    ' + Padr('Experience Gained : ' + ToStr(Exp), 60) + '|');
+      WriteLn('|    ' + Padr('Experience Per Hour : ' + ToStr(ExpPerHour), 60) + '|');
+      WriteLn('|    ' + Padr('Cooking Level : ' + ToStr(Players[I].Integers[11]) + '(+' + ToStr(Players[I].Integers[9]) +')', 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('*----------------------------------------------------------------*');
+    end
+  else
+  begin
+    if not (R_LoggedIn) then
+      Exit;
+
+    Raws := Players[CurrentPlayer].Integers[4];
+    Factor := Players[CurrentPlayer].Integers[6];
+    Exp := (Raws * Factor);
+    Loads := Players[CurrentPlayer].Integers[7];
+    RawsPerHour := Ceil((Raws * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    ExpPerHour := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    LoadsPerHour := Ceil((Loads * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    WriteLn('|                       Individual Report:                       |');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Player[' + ToStr(CurrentPlayer) + ']: ' + Players[CurrentPlayer].Name, 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Reason : ' + Players[CurrentPlayer].Strings[0], 60) + '|');
+    WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Abbrev), 60) + '|');
+    if TakeBreaks then
+      Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)', 58) + '|');
+    WriteLn('|    ' + Padr('FoodType : ' + Players[CurrentPlayer].Strings[1], 60) + '|');
+    WriteLn('|    ' + Padr('Loads Done : ' + ToStr(Loads), 60) + '|');
+    WriteLn('|    ' + Padr('Loads Per Hour : ' + ToStr(LoadsPerHour), 60) + '|');
+    WriteLn('|    ' + Padr('Raw ' + Players[CurrentPlayer].Strings[1] + ' Cooked : ' + ToStr(Raws), 60) + '|');
+    WriteLn('|    ' + Padr('Raws Per Hour : ' + ToStr(RawsPerHour), 60) + '|');
+    WriteLn('|    ' + Padr('Experience Gained : ' + ToStr(Exp), 60) + '|');
+    WriteLn('|    ' + Padr('Experience Per Hour : ' + ToStr(ExpPerHour), 60) + '|');
+    WriteLn('|    ' + Padr('Cooking Level : ' + ToStr(Players[CurrentPlayer].Integers[11]) + '(+' + ToStr(Players[CurrentPlayer].Integers[9]) +')', 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('*----------------------------------------------------------------*');
+  end;
+  Writeln('[/Report]');
+
+  if PaintToSMART then
+    PaintIt(Raws, Factor, Exp, Loads, LoadsPerHour, RawsPerHour, ExpPerHour, TotalEXP, TotalRaws, TotalLevels, Final);
+end;
+
+Procedure StatsIn;
+
+begin
+  if (stats_Commit) then
+    Writeln('Stats Committed.')
+  else
+    DebugIt('Unable To Commit Stats.');
+end;
+
+Procedure EndScript(Reason: string);
+
+begin
+  StatsIn;
+  AntiRandoms;
+  if not Closer then
+    Report(False);
+  Writeln('Termination Cause: ' + Reason);
+  Players[CurrentPlayer].Strings[0] := Reason;
+  if not R_LoggedIn then
+  begin
+    if R_PinScreen then
+      ClosePinScreen;
+    if R_BankScreen then
+    begin
+      R_CloseBank;
+      CloseBank;
+    end;
+  end else
+    Exit;
+  AntiRandoms;
+  WriteLn('Logging Player Out.');
+  WaitFunc(@Logout, RandomRange(100, 200), 1000);
+end;
+
+Function R_TileOnMMWrap(X, Y: Integer): Boolean;
+begin
+  Result := R_TileOnMM(Point(X, Y));
+end;
+
+Function TeleWorked(WaitTime: Integer): Boolean;
+
+var
+  OriginalTile, NewTile: TTile;
+  Timer: Integer;
+
+begin
+  OriginalTile := R_GetMyPos;
+  MarkTime(Timer);
+  while (WaitTime >= TimeFromMark(Timer)) and (OriginalTile = R_GetMyPos) do
+    Wait(100);
+  Result := (OriginalTile <> NewTile);
+end;
+
+Function DeathWalk: Boolean;
+
+var
+  Param1, Param2: TVariantArray;
+
+begin
+  if not R_LoggedIn then
+    Exit;
+
+  Result := False;
+
+  AntiRandoms;
+  if not R_SelfInBox(DWBox) then
+  begin
+    Writeln('Will Wait About 10 Seconds To Establish If Lost.');
+    Wait(10000);
+    if not R_SelfInBox(DWBox) then
+    begin
+      Writeln('In An Unknown Location. Will Begin Deathwalk.');
+      if R_GetPlaneIndex = 0 then
+        if R_WalkPathEx(DWPath, 2, 5, False) then
+        begin
+          Writeln('Found Our Way Back To The Correct Location.');
+          Result := True;
+          Exit;
+        end else
+          DebugIt('Unable To Walk The Path.')
+      else
+        DebugIt('Not On Groud Level, Therefore Can''t Walk.');
+      AntiRandoms;
+      if TabExists(Tab_Magic) then
+      begin
+        WriteLn('Will Attempt To Teleport To Lumbridge.');
+        R_GameTab(RTAB_SPELLBOOK);
+        Param1 := ['Lumbridge Home Teleport', False];
+        if (WaitFuncEx('Cast', Param1, 500, 5000)) then
+        begin
+          AntiRandoms;
+          Writeln('Will Wait A Bit To Verify A Teleport.');
+          Param2 := [DWPath[0].x,DWPath[0].y];
+          if TeleWorked(30000) then
+            if WaitFuncEx('R_TileOnMMWrap',Param2,100,10000) then
+            begin
+              Maintenance;
+              if (R_WalkPathEx(DWPath, 2, 5, False)) then
+              begin
+                Writeln('Found Our Way Back To The Correct Location.');
+                Result := True;
+                Maintenance;
+                Exit;
+              end else
+                EndScript('Unable To Walk The Path.');
+            end else
+              EndScript('Could Not Find The First Tile In The DeathWalk Path.')
+          else
+            EndScript('Not At Lumbridge After Home Teleport.');
+        end else
+          EndScript('Cannot Find The Home Teleport Button.');
+      end else
+        EndScript('Magic Tab Is Not Present. Cannot Attempt A Teleport.');
+    end;
+  end;
+end;
+
+function IsMenuOpen: Boolean;
+
+begin
+ Result := SmartGetFieldBoolean(0, hook_static_MenuOpen);
+end;
+
+function MouseStaircase(Click: Boolean): Boolean;
+
+var
+  MoveCounter, ClickCounter, Tries: Integer;
+  Clicked: Boolean;
+  Sc1, Sc2: TPoint;
+  StaircaseTile: TTileArray;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  SetLength(StaircaseTile, 2);
+  StaircaseTile[0] := Point(3205, 3208);
+  StaircaseTile[1] := Point(3205, 3207);
+  Tries := 0;
+  ClickCounter := 0;
+  Result := False;
+  repeat
+    Inc(Tries);
+    if (R_IsIdle) then
+    begin
+      MoveCounter := 0;
+      AntiRandoms;
+      repeat
+        if (MoveCounter >= 5) then
+        begin
+          Sc1 := Sc2;
+        end else
+        begin
+          Sc1 := R_TileToMS(StaircaseTile[0], 0);
+          Sc2 := R_TileToMs(StaircaseTile[1], 0);
+        end;
+        if IsMenuOpen then
+          MouseBox(MSX1, MSY1, MSX2, MSCY, 3);
+        Inc(MoveCounter);
+        DebugIt('Staircase Uptext Attempt ' + IntToStr(MoveCounter) + '.');
+        MMouse(Sc1.x, Sc1.y, RandomRange(-5,2), RandomRange(-5,2));
+        DebugIt('Moved The Mouse Over The Staircase.');
+      until R_WaitUpText('staircase',600) or (MoveCounter >= 10);
+      if not (MoveCounter >= 10) then
+      begin
+        ClickMouse2(Click);
+        if (Click) then
+          Clicked := R_WaitCrossHairColor(CROSSHAIR_RED, 2000)
+        else
+          Clicked := WaitFunc(@IsMenuOpen, RandomRange(30,70), 2000);
+        if not Clicked then
+          Inc(ClickCounter);
+      end else
+        DebugIt('Unable To Get The Correct Bottom Floor Staircase Uptext Using Sc1 and Sc2.');
+    end else
+      Wait(1000);
+  until Clicked or (ClickCounter >= 5) or (Tries >= 10);
+  Result := Clicked;
+  DebugIt('Function MouseStaircase Is ' + ToStr(Clicked) + '.');
+end;
+
+Function RightFloor(Floor, Floor2: Integer): Boolean;
+
+begin
+  Result := (R_GetPlaneIndex = Floor) or (R_GetPlaneIndex = Floor2);
+end;
+
+Procedure StaircaseTo(Route: String);
+
+var
+  MainCount, GoalFloor, OppositeFloor, Counter1: Integer;
+  Arr: TVariantArray;
+  Error: string;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  DebugIt('Running StaircaseTo(' + Route + ').');
+  MainCount := 0;
+  if (Route = 'Up') then
+    GoalFloor := 2
+  else
+    OppositeFloor := 2;
+
+  repeat
+    AntiRandoms;
+    case (R_GetPlaneIndex) of
+
+      GoalFloor:
+      begin
+        DebugIt('Already On The ' + Route + ' Floor.');
+        Break;
+      end;
+
+      OppositeFloor:
+      begin
+        if (MouseStaircase(True)) then
+        begin
+          DebugIt('Counter1 Is ' + IntToStr(Counter1) + '.');
+          Arr := [GoalFloor, 1];
+          if WaitFuncEx('RightFloor', Arr, RandomRange(70, 100), 3000) then
+            Continue
+          else
+            Error := 'Not On The Correct Floor After 10 Tries.';
+        end else
+          Error := 'MouseStaircase Is False.';
+        Inc(MainCount);
+      end;
+
+      1://Middle Floor
+      begin
+        Counter1 := 0;
+        DebugIt('On The Middle Floor Continuing.');
+        repeat
+          Inc(Counter1);
+          DebugIt('Counter2 Equals ' + IntToStr(Counter1) + '.');
+          if (MouseStaircase(False)) then
+            if R_ChooseOption(Route) then
+              if R_WaitCrossHairColor(CROSSHAIR_RED, 2000) then
+              begin
+                DebugIt('Clicked On Option ' + Route + '.');
+                Arr := [GoalFloor, GoalFloor];
+                if WaitFuncEx('RightFloor', Arr, RandomRange(70, 100), 3000) then
+                  Break;
+              end else
+                DebugIt('Did Not Perform A Valid Click.')
+            else
+              DebugIt('Did Not Choose An Option Of The Correct One.')
+          else
+            DebugIt('MouseStaircase Is False.');
+        until (Counter1 >= 10);
+        if (Counter1 < 10) then
+          Continue;
+        Inc(MainCount);
+        Error := 'MF--Not On The Correct Floor After 10 Tries.';
+      end;
+    end;
+  until (MainCount >= 10);
+  if (MainCount >= 10) then
+  begin
+    EndScript(Error);
+    Exit;
+  end;
+end;
+
+Procedure Walk(I, Distance: Integer);
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure Walk(' + IntToStr(I) + ').');
+  stats_IncVariable('Times Walked', 1);
+  if (R_TileOnMM(ToKitchen[I])) then
+  begin
+    DebugIt('The Point ' + ToStr(ToKitchen[I]) + ' Is On The Minimap.');
+    if (R_WalkToTile(ToKitchen[I], 0, Distance)) then
+      DebugIt('Walking to Point ' + ToStr(ToKitchen[I]) + '. Current Position: ' + ToStr(R_GetMyPos) + '.')
+    else
+      EndScript('Could Not Walk To Point ' + ToStr(ToKitchen[I]) + '.');
+  end else
+    EndScript('The Point ' + ToStr(ToKitchen[I]) + ' Is Not On The Minimap.');
+end;
+
+Procedure Walking(Destination: String);
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  case (Destination) of
+
+    'Range':
+    begin
+      DebugIt('Running Procedure Walking(' + Destination + ').');
+      if not (R_GetPlaneIndex = 0) then
+      begin
+        DebugIt('On The Top Or Middle Floor.');
+        AntiRandoms;
+        Walk(0,0);
+      end;
+      StaircaseTo('Down');
+      AntiRandoms;
+      Walk(1,0);
+      AntiRandoms;
+    end;
+
+    'Bank':
+    begin
+      DebugIt('Running Procedure Walking(' + Destination + ').');
+      if not (R_GetPlaneIndex = 2) then
+      begin
+        DebugIt('On The Bottom Or Middle Floor.');
+        AntiRandoms;
+        Walk(0,0);
+      end;
+      StaircaseTo('Up');
+      AntiRandoms;
+      Walk(2,2);
+    end;
+  end;
+end;
+
+Procedure BankItems;
+
+var
+  A, B: Integer;
+  RawInv: TInvItem;
+  RawBank: TBankItem;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure Bank.');
+  A := 0;
+  B := 0;
+  stats_IncVariable('Times Banked', 1);
+  if not (R_GetPlaneIndex = 2) then
+    Walking('Bank');
+  repeat
+    if not (R_LoggedIn) then
+      Exit;
+    Inc(B);
+    DebugIt('Attempt #' + IntToStr(B) + ' To Open The Bank. Will Stop After 10 Attempts Or After Successful.');
+    if R_OpenBankBooth then
+    begin
+      DebugIt('Bank Screen Is Open.');
+      R_DepositAll(True);
+      if R_InvEmpty then
+      begin
+        DebugIt('The Inventory Is Empty.');
+        if R_ItemExistsInBank(Players[CurrentPlayer].Integers[5], RawBank) then
+        begin
+          DebugIt('Found Raw ' + Players[CurrentPlayer].Strings[1] + ' DTM In Bank.');
+          if R_WithdrawItem(Players[CurrentPlayer].Integers[5], True) then
+          begin
+            DebugIt('Withdrew Items.');
+            if R_ItemExists(Players[CurrentPlayer].Integers[5], RawInv) then
+            begin
+              DebugIt('Found Raw ' + Players[CurrentPlayer].Strings[1] + ' DTM in Inventory.');
+              Break;
+            end else
+              EndScript('Could Not Find/Withdraw Raw ' + Players[CurrentPlayer].Strings[1] + '(s). In Inventory.')
+          end else
+            DebugIt('Unable To Withdraw Raw ' + Players[CurrentPlayer].Strings[1] +'.');
+        end else
+          EndScript('Could Not Find Raw ' + Players[CurrentPlayer].Strings[1] + ' In The Bank.');
+      end else
+        EndScript('Could Not Deposit All The Items In The Inventory.');
+    end else
+      DebugIt('Unsuccessful In Opening The Bank. Will Try Again.');
+  until (B >= 10);
+  if (B >= 10) then
+    EndScript('Unable To Open The Bank.');
+end;
+
+Function R_ClickFood(Ends: string): Boolean;
+
+var
+  Tries: Integer;
+
+begin
+  Result := False;
+  AntiRandoms;
+  if R_CountItem(Players[CurrentPlayer].Integers[5]) > 0 then
+  repeat
+    AntiRandoms;
+    Inc(Tries);
+    Result := R_ClickItemBy(Players[CurrentPlayer].Integers[5],'Use');
+  until Result else
+    Ends := 'No Raw ' + Players[CurrentPlayer].Strings[1] + ' Exist In The Inventory.';
+  if (Tries >= 5) then
+    Ends := 'Trouble Clicking Item.';
+end;
+
+Function R_ClickRange: Boolean;
+
+var
+  TilePoint, RangePoint, SWPoint, NEPoint: TPoint;
+  RangeBox: TBox;
+
+begin
+  Result := False;
+
+  AntiRandoms;
+  RangePoint := Point(3212, 3215);
+  TilePoint := R_TileToMS(RangePoint, 0);
+  if (TilePoint.x = -1) or (TilePoint.y = -1) then
+  begin
+    Writeln('The Center Of The Tile Is Not On Screen.');
+    Exit;
+  end;
+
+  SWPoint := R_TileToMSEx(RangePoint, 0.2, 0.2, 0);
+  NEPoint := R_TileToMSEx(Point(RangePoint.x, RangePoint.y + 1), 0.8, 1, 0);
+
+  if SWPoint.x < MSx1 then
+    SWPoint.x := MSx1;
+  if SWPoint.y < MSy1 then
+    SWPoint.y := MSy1;
+  if NEPoint.x > MSx2 then
+    NEPoint.x := MSx2;
+  if NEPoint.y > MSy2 then
+    NEPoint.y := MSy2;
+
+  RangeBox := PointToBox(SWPoint, NEPoint);
+  MouseBox(RangeBox.X1,RangeBox.Y1,RangeBox.X2,RangeBox.Y2,3);
+  if R_WaitUpText('cooking', 1000) then
+    ClickMouse2(true);
+  Result := R_WaitCrossHairColor(CROSSHAIR_RED, 1000);
+end;
+
+{Function R_ColorClickRange(Tile: TTile; Color, Tolerence: Integer): Boolean;
+
+var
+  ThePoint, SouthWest, NorthEast: TPoint;
+  Points: TPointArray;
+
+begin
+  ThePoint := TileToMS(Tile, GetTileHeight(Tile));
+  if (ThePoint.x = -1) or (ThePoint.y = -1) then
+  begin
+    Writeln('The Center Of The Tile Is Not On Screen.');
+    Exit;
+  end;
+
+  SouthWest := TileToMSEx(Tile, 0, 0, GetTileHeight(Tile));
+  NorthEast := TileToMSEx(Tile, 1, 1, GetTileHeight(Tile));
+
+  if SouthWest.x < MSx1 then
+    SouthWest.x := MSx1;
+  if SouthWest.y < MSy1 then
+    SouthWest.y := MSy1;
+  if NorthEast.x > MSx2 then
+    NorthEast.x := MSx2;
+  if NorthEast.y > MSy2 then
+    NorthEast.y := MSy2;
+
+  FindColorsTolerance(Points, Color, SouthWest.x, SouthWest.y, NorthEast.x, NorthEast.y, Tolerence);
+
+  if not((Length(Points) > 30) or (Length(Points) < 10)) then
+  begin
+    ThePoint := Points[Random(High(Points))];
+    MMouse(ThePoint.X, ThePoint.Y, 0, 0);
+    if WaitUpText('Cooking', 1000) then
+    begin
+      ClickMouse2(True);
+      DebugIt('Found Range Using Relfection And Color.');
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  Result := False;
+end;}
+
+{Function ColorClickRange: Boolean;
+
+var
+  I, Timer, Tries: Integer;
+  Range: TRSObject;
+  RangeTile: TTileArray;
+  RangeColors: TPointArray;
+  New: T2DPointArray;
+  RPoint: TPoint;
+
+begin
+  if not (LoggedIn) then
+    Exit;
+
+  SetArrayLength(RangeTile, 2);
+  RangeTile[0] := Tile(3212, 3215);
+  RangeTile[1] := Tile(3212, 3216);
+  R_Flag;
+  repeat
+    Inc(Tries);
+    AntiRandoms;
+    for I:= 0 to 1 do
+    begin
+      MarkTime(Timer);
+      repeat
+        Wait(50);
+        Range := GetObjectAt(RangeTile[I], 0);
+      until (Range <> Null_RSObject) or (TimeFromMark(Timer) >= 30 * 1000);
+      if Range <> Null_RSObject then
+      begin
+        AntiRandoms;
+        DebugIt('Range Tile Set To Tile' + ToStr(RangeTile[I]) + '.');
+        if TileOnMs(Range.Tile, 0) then
+        begin
+          if (Range.Area <> Null_Box) then
+          begin
+            if FindColorsSpiralTolerance(MSCX, MSCY, RangeColors, RangeC, MSCX, MSY1,MSX2, MSY2, 5) then
+            begin
+              New := SplitTPA(RangeColors, 25);
+              for I := 0 to High(New) do
+              begin
+                RPoint := MiddleTPA(New[I]);
+                MMouse(RPoint.X, RPoint.Y, 3, 3);
+                if WaitUpText('Cooking', 1000) then
+                begin
+                  ClickMouse2(True);
+                  DebugIt('Found Range Using Color.');
+                  Result := True;
+                  Exit;
+                end;
+              end;
+            end;
+          end;
+        end;
+      end;
+    end;
+  until (Tries > 10);
+end;}
+
+Function R_FindChatButton: Boolean;
+
+var
+  ID: Integer;
+
+begin
+  ID := R_GetInterfaceComponent(905,14,56).ID;
+  Result := (R_ValidInterface(905)) and ((ID = Players[CurrentPlayer].Integers[5]) or
+     (lowercase(R_GetInterfaceTextEx(905,14,57)) = lowercase('Raw ' + Players[CurrentPlayer].Strings[1])));
+end;
+
+Function R_ClickChatButton(var RawCount: Integer): Boolean;
+
+begin
+  Result := False;
+  R_Flag;
+  AntiRandoms;
+  if WaitFunc(@R_FindChatButton,100,2000) then
+  begin
+    RawCount := R_CountItem(Players[CurrentPlayer].Integers[5]);
+    R_ClickInterface(R_GetInterfaceChild(905, 14), 1);
+    DebugIt('Clicked The Chat In An Attempt To Cook.');
+    AntiRandoms;
+    Result := True;
+  end else
+    DebugIt('Cannot Find The Chat Button. Will Try Again.');
+end;
+
+Function R_IsCooking(StartingCount: Integer): Boolean;
+
+var
+  Timer, Attempts, RawCount, NewCount: Integer;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  Result := False;
+  MarkTime(Timer);
+  repeat
+    if StartingCount > R_CountItem(Players[CurrentPlayer].Integers[5]) then
+    begin
+      DebugIt('Started Cooking The ' + Players[CurrentPlayer].Strings[1] + '(s).');
+      MouseBox(MSX1,MSY1,MSX2,MSY2, 3);
+      Break;
+    end else
+    begin
+      Inc(Attempts);
+      DebugIt('Check # ' + IntToStr(Attempts) + '. Did Not Start Cooking The Raw ' + Players[CurrentPlayer].Strings[1] + '(s).');
+      Wait(100);
+    end;
+  until (TimeFromMark(Timer) >= 5000);
+  if TimeFromMark(Timer) >= 5000 then
+  begin
+    DebugIt('Did Not Start Cooking.');
+    AntiRandoms;
+    Exit;
+  end else
+  begin
+    AntiRandoms;
+    repeat
+      AntiBan;
+      RawCount := R_CountItem(Players[CurrentPlayer].Integers[5]);
+      MarkTime(Timer);
+      if (RawCount > 0) then
+      repeat
+        NewCount := R_CountItem(Players[CurrentPlayer].Integers[5]);
+        Wait(315);
+      until (TimeFromMark(Timer) >= 6000) or (RawCount > NewCount) or (NewCount = 0);
+      DebugIt('Cooked ' + IntToStr(R_CountItem(Players[CurrentPlayer].Integers[3])) + ' Raw ' + Players[CurrentPlayer].Strings[1] + '(s).');
+      AntiRandoms;
+    until (NewCount = 0) or (RawCount = 0) or (TimeFromMark(Timer) >= 6000);
+    if (R_CountItem(Players[CurrentPlayer].Integers[5]) = 0) then
+    begin
+      DebugIt('Finished Cooking.');
+      Result := True;
+    end;
+  end;
+end;
+
+Procedure R_CookFood;
+
+var
+  Tries, CookCheck: Integer;
+  Fail: string;
+
+begin
+  if not (R_LoggedIn) then
+    Exit;
+
+  Tries := 0;
+  DebugIt('Running Procedure CookFood.');
+  AntiRandoms;
+  Players[CurrentPlayer].Integers[11] := R_GetSkillLevel(Skill_Cooking);
+  repeat
+    Inc(Tries);
+    if (R_GetPlaneIndex = 0) then
+      if (R_CountItem(Players[CurrentPlayer].Integers[5]) > 0)then
+        if (R_ClickFood(Fail)) then
+        begin
+          R_Flag;
+          if (R_ClickRange) then
+            if (R_CountItem(Players[CurrentPlayer].Integers[5]) > 1) then
+              if (R_ClickChatButton(CookCheck)) then
+                if (R_IsCooking(CookCheck)) then
+                begin
+                  DebugIt('Finished Cooking Food.');
+                  IncEx(Players[CurrentPlayer].Integers[7], 1);
+                  stats_IncVariable('Loads Done', 1);
+                  IncEx(Players[CurrentPlayer].Integers[4], R_CountItem(Players[CurrentPlayer].Integers[3]));
+                  stats_IncVariable(Players[CurrentPlayer].Strings[2], R_CountItem(Players[CurrentPlayer].Integers[3]));
+                  stats_IncVariable('Total EXP Gained', (R_CountItem(Players[CurrentPlayer].Integers[3]) * Players[CurrentPlayer].Integers[6]));
+                  stats_IncVariable('Cooking EXP (Gained)', (R_CountItem(Players[CurrentPlayer].Integers[3]) * Players[CurrentPlayer].Integers[6]));
+                  Stats_IncVariable('Total Levels Gained', (R_GetSkillLevel(Skill_Cooking) - Players[CurrentPlayer].Integers[11]));
+                  IncEx(Players[CurrentPlayer].Integers[9], (R_GetSkillLevel(Skill_Cooking) - Players[CurrentPlayer].Integers[11]));
+                  Players[CurrentPlayer].Integers[11] := R_GetSkillLevel(Skill_Cooking);
+                  Break;
+                end else
+                  Fail := 'R_IsCooking Is False.'
+              else
+                Fail := 'Unable To Click The Chat And Cook.'
+            else
+              Break
+          else
+            Fail := 'Unable To Find Cooking Range And Cook Food.';
+        end else
+          Fail := 'Unable To Click The Food.'
+      else
+        Break
+    else
+      Fail := 'Not On The Correct Floor.';
+    AntiRandoms;
+    Inc(Tries);
+  until (Tries >= 8);
+  if (Tries >= 8) then
+    EndScript(Fail);
+end;
+
+Procedure FinalReport;
+
+begin
+  if not (Success) then
+  begin
+    Closer := True;
+    EndScript('Manually Terminated.');
+    ClearRSCanvas(SMART_Canvas.canvas);
+    Report(True);
+  end;
+  StatsIn;
+end;
+
+Function Goals: Boolean;
+
+var
+  Time, Raws: Integer;
+
+begin
+  Result := False;
+  Time := Players[CurrentPlayer].Integers[0];
+  Raws := Players[CurrentPlayer].Integers[1];
+  if (Raws <> 0) then
+    begin
+    if (Raws <= Players[CurrentPlayer].Integers[4]) then
+      Result := True;
+      Exit;
+    end
+  else if (Time <> 0) then
+    if (Time <= (Players[CurrentPlayer].Worked/60000)) then
+      Result := True;
+end;
+
+{*******************************************************************************
+
+Procedure ScriptUpdate;
+Description: Checks For Newer Versions Of The Script And Updates The Script If
+             The User Sets The Update Constant;
+Authors: Harry. Eddited By Me.
+
+*******************************************************************************}
+
+procedure ScriptUpdate;
+var ClientUp, Neifile:integer;
+    OnlineVersion, NewScript, NeiFeilNennen:string;
+begin
+  if AutoUpdate then
+  begin
+    Writeln('Checking For An Updated Script Version.');
+    ClientUp := InitializeHTTPClient(False, False);
+    SetHTTPUserAgent(ClientUp,'Simba ' + Version);
+    OnlineVersion := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/LCVersion.simba');
+    Writeln(onlineversion);
+    Writeln(Version)
+    FreeHTTPClient(ClientUp);
+    if (Length(trim(OnlineVersion)) = 3) and (trim(OnlineVersion) > Version) then
+    begin
+      WriteLn('Newer Version Found Online. Will AutoUpdate.');
+      ClientUp := InitializeHTTPClient(False,False);
+      SetHTTPUserAgent(ClientUp,'Simba');
+      NewScript := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/Lumbridge%20Cooker%20-%20Current.simba');
+      FreeHTTPClient(ClientUp);
+
+      NeiFeilNennen := ScriptPath + 'Lumbridge Cooker v'+trim(OnlineVersion)+'.simba';
+      Neifile := Rewritefile(NeiFeilNennen, true);
+      try
+        WriteFileString(Neifile, NewScript);
+      except
+        begin
+          WriteLn('Fatal Error Writing To '+NeiFeilNennen+'!');
+          TerminateScript;
+        end;
+      end;
+      CloseFile(Neifile);
+      WriteLn('New Script Downloaded And Saved To '+NeiFeilNennen+' !! Please Use This!');
+      TerminateScript;
+    end else
+    begin
+      if (Length(trim(OnlineVersion)) <> 3) then
+      begin
+        WriteLn('Version Checking Failed. You Might Be Outdated.');
+        Writeln('Please Check For The Latest Version Online.');
+      end else
+        WriteLn('You Have The Latest Version Of The Script!');
+      Exit;
+    end;
+  end else
+    WriteLn('!!!!! Not Checking For The Latest Version Of This Script. You Might Be Outdated!');
+end;
+
+Procedure MainLoop;
+
+var
+  I: Integer;
+
+begin
+  for I := 0 to (High(Players)) do
+  begin
+    Players[I].BoxRewards := ['XP'];
+    Players[I].WorldInfo := [Players[I].Member, -1, False];
+    LoadFoods(I);
+  end;
+  LoadVariables;
+  Moddy := False;
+  Success := False;
+  Closer := False;
+  MarkTime(Stats);
+  repeat
+    if not (R_LoggedIn) and LoginPlayer then
+      stats_IncVariable('Total Logins', 1)
+    else if not Moddy then
+      PlayerStartTime := GetSystemTime
+    else
+      Moddy := False;
+
+    if R_LoggedIn then
+      Maintenance;
+
+    while not (Goals) and (R_LoggedIn)  do
+    begin
+      if DeathWalk then
+        Continue;
+
+      if TakeBreaks then
+        BreakHandler(BreakAfter, BreakTime, BreakRandomness, BreakRandomness);
+
+      if R_LoggedIn then
+        Players[CurrentPlayer].Integers[11] := R_GetSkillLevel(Skill_Cooking);
+
+      StatsIn;
+      Report(False);
+      AntiRandoms;
+      BankItems;
+      Walking('Range');
+      R_CookFood;
+      Maintenance;
+      Walking('Bank');
+      DeathWalk;
+    end;
+    if (Goals) then
+    begin
+      EndScript('Reached All Set Goals.');
+      NextPlayer(False);
+    end else if R_LoggedIn then
+      NextPlayer(Players[CurrentPlayer].Strings[0] = '')
+    else
+      NextPlayer(False);
+  until (AllPlayersInactive);
+  Writeln('Script Succesfully Ran.');
+  Report(True);
+  Success := True;
+end;
+
+Begin
+  ClearDebug;
+
+  ScriptUpdate;
+
+  Smart_Members := MEMBERS;
+  Smart_Server := WORLD;
+  Smart_Signed := SIGNED;
+
+  if (Stats_UserID = '') then
+    SetupSRLStats(61, 'YagoScripts', 'abcdefghij')
+  else
+    SetupSRLStats(61, Stats_UserID, Stats_Password);
+
+  SetUpReflection;
+  Smart_SetupDebug;
+  SetupMagic;
+  DeclarePlayers;
+  AddonTerminate('FinalReport');
+  MainLoop;
+End.
