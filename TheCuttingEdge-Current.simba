@@ -866,9 +866,6 @@ begin
     AntiRandoms;
   end;
 
-  if not IsLoggedIn then
-    TakeScreen('TCEFailed');
-
   DebugIt(ToStr(I));
   IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
   Count := InvCount;
@@ -997,7 +994,6 @@ begin
         'logout': LogOut;
       end;
     end;
-    TakeScreen('Loggin');
     NextPlayer(False);
   until AllPlayersInactive;
 end;
