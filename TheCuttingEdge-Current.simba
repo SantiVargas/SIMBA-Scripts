@@ -19,7 +19,7 @@ const
   AutoUpdate      = True;          // Check For And Download The Newest Script Version.
 
   AntiBanAmount   = 1;             // 0 = 0% Chance. 100 = 100%.
-  ReportWait      = 30;            // How Often In Seconds To Print A Text Report
+  ReportWait      = 60;            // How Often In Seconds To Print A Text Report
   PaintWait       = 50;            // How Often In Miliseconds To Print On Screen. Set To 0 For No Paint
 
 
@@ -42,9 +42,6 @@ begin
   NumberOfPlayers(HowManyPlayers);
   setlength(MyPlayers, HowManyPlayers);
 
-  stats_Username := '';
-  stats_UserPass := '';
-
   With MyPlayers[0] do
   begin
     Name        := '';           //Character Name
@@ -61,14 +58,15 @@ end;
 {Do Not Touch Below Unless Instructed To!!!}
 const
   //Version And Paths
-  Version     = '0.2';                            //Script Version;
-  ThePath     = AppPath + '/Scripts/TCEProg.png'; // Image Path;
+  Version     = '0.3';                            //Script Version;
+  ThePath     = ScriptPath + '/TCEProg.png'; // Image Path;
 
   //Script-Function Wait Times
   MaxWait     = 100000; //How much time to wait for a tree after checking the previous tree.
   MaxWaits    = 10;     //How many times to go from tree to tree without success before logging out.
   MaxWalks    = 4;      //Maximum Attempts To Repeat Walking If Failed
   MaxIdle     = 60000;  //Failsafe Time To Idle While Chopping
+  MaxRetry    = 4;      //Max Number of times to retry chopping script while idle
 
   //Color-Related Constants
   Accuracy        = 200;     //Do Not Change This
@@ -87,6 +85,10 @@ const
   Black_Axe   = 4;
   Iron_Axe    = 5;
   Bronze_Axe  = 6;
+
+  //Other
+  YewLogExp   = 175;
+  TLoggedIn   = 4000;
 
 var
   Event: string;
@@ -230,6 +232,18 @@ begin
   DebugIt('Ran Procedure AntiRandoms.');
 end;
 
+function IsLoggedIn: boolean;
+var
+  Timer: Integer;
+begin
+  //Failsafe for the onFocus bug with SMART. The screen goes black for a few ms when focusing on SMART.
+  Result := (PercentBlackMM <> 100) and LoggedIn;
+  MarkTime(Timer);
+  while (not Result) and (TimeFromMark(Timer) <= TLoggedIn) do
+    Result := (PercentBlackMM <> 100) and LoggedIn;
+  DebugIt('IsLoggedIn: ' + ToStr(Result));
+end;
+
 {*******************************************************************************
 procedure SetAngle(Highest : Boolean);
 By: Raymond, edit by NaumanAkhlaQ. Editted By me
@@ -238,7 +252,7 @@ Description: Sets the mainscreen at highest\lowest angle (Depends on the boolean
 *******************************************************************************}
 procedure SetCustomAngle(Highest: Boolean);
 begin
-  if (not LoggedIn) then exit;
+  if (not IsLoggedIn) then exit;
   KeyDown((Integer(not Highest) * 2) + 38);
   Sleep(1000 + Random(300));
   KeyUp((Integer(not Highest) * 2) + 38);
@@ -247,12 +261,12 @@ end;
 Procedure Maintenance(Angle: string);
 
 begin
-  if not (LoggedIn) then
+  if not (IsLoggedIn) then
     Exit;
 
   DebugIt('Running Procedure Maintenance(' + Angle +').');
   AntiRandoms;
-  if not LoggedIn then
+  if not IsLoggedIn then
     Exit;
   SetCustomAngle(True);
   MakeCompass(Angle);
@@ -322,7 +336,7 @@ begin
   DebugIt('Function PlayerStartUp.');
   Result := False;
   AntiRandoms;
-  if not LoggedIn then
+  if not IsLoggedIn then
     Exit;
 
   CloseBank;
@@ -433,12 +447,14 @@ Var
   LogsH, ExpH: LongInt;
 
 begin
-  if Final or ((TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and LoggedIn) then
+  if (stats_Commit) then
+    Writeln('Stats Committed.');
+  if Final or ((TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and IsLoggedIn) then
   begin
     for I := 0 to (High(Players)) do
     begin
       IncEx(TotalLogs, MyPlayers[I].Logs);
-      IncEx(TotalEXP, Round(175 * MyPlayers[I].Logs));
+      IncEx(TotalEXP, Round(YewLogExp * MyPlayers[I].Logs));
       //IncEx(TotalLevels, Players[I].Integers[9]);
     end;
     Writeln('[Report]');
@@ -462,7 +478,7 @@ begin
     for I := 0 to (High(Players)) do
     begin
       Log := MyPlayers[I].Logs;
-      Exp := Round(175 * Log);
+      Exp := Round(YewLogExp * Log);
       LogsH := Ceil((Log * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
       ExpH := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
       WriteLn('|                       Individual Report:                       |');
@@ -481,10 +497,10 @@ begin
       WriteLn('|                                                                |');
       WriteLn('*----------------------------------------------------------------*');
     end
-  else if (TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and LoggedIn then
+  else if (TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and IsLoggedIn then
   begin
     Log := MyPlayers[CurrentPlayer].Logs;
-    Exp := Round(175 * Log);
+    Exp := Round(YewLogExp * Log);
     LogsH := Ceil((Log * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
     ExpH := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
     WriteLn('|                       Individual Report:                       |');
@@ -568,7 +584,7 @@ var
 begin
   Result := False;
   AntiRandoms;
-  if not LoggedIn then
+  if not IsLoggedIn then
     Exit;
 
   Maintenance('n');
@@ -598,7 +614,7 @@ begin
           Result := (InvCount = 1);
         end;
       until Result or (Failsafe >= 4);
-      if (Failsafe >= 4) then
+      if not Result then
         DebugIt('Unable To DepositAll Items In The Inventory.');
     end else
       DebugIt('Unable To Open The Bank.');
@@ -670,7 +686,7 @@ var
   WPoint: TPoint;
 
 begin
-  if not LoggedIn then
+  if not IsLoggedIn then
     Exit;
 
   Result := False;
@@ -679,7 +695,7 @@ begin
   repeat
     Report(False);
     AntiRandoms;
-    if not LoggedIn then
+    if not IsLoggedIn then
       Exit;
 
     Inc(Attempt);
@@ -714,7 +730,7 @@ begin
             if WaitFunc(@IsMoving, 1, 3000 + random(500)) then
             begin
               MarkTime(FailSafe);
-              while (TimeFromMark(FailSafe) < 30000) and LoggedIn and InTreeArea(SP) do
+              while (TimeFromMark(FailSafe) < 30000) and IsLoggedIn and InTreeArea(SP) do
               begin
                 Report(False);
                 Wait(RandomRange(33,55));
@@ -733,9 +749,9 @@ begin
           Result := False;
       end;
     end;
-  until Result or (Attempt >= MaxWalks) or (not LoggedIn);
+  until Result or (Attempt >= MaxWalks) or (not IsLoggedIn);
 
-
+  stats_IncVariable('Times Walked', 1);
   SMART_ClearCanvasArea(PointToBox(Point(MMX1,MMY1),Point(MMX2,MMY2)));
   DebugIt('WalkTo(' + ToStr(Location) + '): '  + ToStr(Result));
 end;
@@ -747,13 +763,13 @@ var
 
 begin
   Result := False;
-  if not LoggedIn then
+  if not IsLoggedIn then
     Exit;
 
   Result := FindColorsTolerance(TreeColors,TreeLeavesColor,MSX1,MSY1,MSX2,MSY2,3)
               and (Length(TreeColors) >= Accuracy);
   TreeBox := GetTPABounds(TreeColors);
-  DebugIt('Length Of Colors Is: ' + tostr(length(TreeColors)));
+  //DebugIt('Length Of Colors Is: ' + tostr(length(TreeColors)));
   DebugIt('FindAYew: ' + ToStr(Result));
 end;
 
@@ -766,7 +782,7 @@ var
 
 begin
   Result := False;
-  if not LoggedIn then
+  if not IsLoggedIn then
     Exit;
 
   DebugIt('Function CutAYew.');
@@ -778,7 +794,8 @@ begin
     SMART_ClearMS;
     SMART_DrawDotsEx(False, Colors, clRed);
     DebugIt('Length Of Colors Is: ' + tostr(length(Colors)));
-    MousePoint := Colors[Random(High(Colors))];
+    //MousePoint := Colors[Random(High(Colors))];
+    MousePoint := MiddleTPA(Colors);
     MMouse(MousePoint.x,MousePoint.y-10,5,5);
     if WaitUpTextMulti(['hop','down','ew'], 500) then
       ClickMouse2(true);
@@ -800,41 +817,57 @@ begin
   Result := False;
   AntiRandoms;
   Report(False);
-  if (not LoggedIn) or InvFull then
+  if (not IsLoggedIn) or InvFull then
     Exit;
 
   Count := InvCount;
-  for I := 0 to 3 do
-  if LoggedIn and (not InvFull) and FindAYew(Bounds) then
+  for I := 0 to MaxRetry do
   begin
-    DebugIt(ToStr(I));
-    Maintenance('W');
-
-    DebugIt('Found A Yew Tree.');
-    if CutAYew(Bounds) then
+    DebugIt('Retry: ' + ToStr(I));
+    if IsLoggedIn and (not InvFull) and FindAYew(Bounds) then
     begin
-      Report(False);
-      DebugIt('Successfully Began To Chop Down Yew.');
-      MarkTime(TreeTime);
-      Counter := 0;
-      repeat
-        Wait(RandomRange(33,50));
-        AntiRandoms;
-        AntiBan;
-        if not FindAYew(Bounds) then
-          Inc(Counter);
-        IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
-        Count := InvCount;
+      DebugIt(ToStr(I));
+      Maintenance('W');
+
+      DebugIt('Found A Yew Tree.');
+      if CutAYew(Bounds) then
+      begin
         Report(False);
-      until InvFull or (Counter >= 3) or (TimeFromMark(TreeTime) >= MaxIdle) or (not LoggedIn);
-      DebugIt('Time: ' + ToStr(TimeFromMark(TreeTime)));
-      Result := LoggedIn and (InvFull or ((TimeFromMark(TreeTime) < MaxIdle) and (Counter < 3)));
-      SMART_ClearMS;
-      IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
-      Count := InvCount;
+        DebugIt('Successfully Began To Chop Down Yew.');
+        MarkTime(TreeTime);
+        Counter := 0;
+        repeat
+          Wait(RandomRange(33,50));
+          AntiRandoms;
+          AntiBan;
+          if not FindAYew(Bounds) then
+            Inc(Counter);
+
+          //Stats
+          IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
+          stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
+          stats_IncVariable('Woodcutting EXP (Gained)', ((InvCount-Count) * YewLogExp));
+          stats_IncVariable('Total EXP Gained', ((InvCount-Count) * YewLogExp));
+          Count := InvCount;
+          Report(False);
+        until (not IsLoggedIn) or InvFull or (Counter >= 3) or (TimeFromMark(TreeTime) >= (MaxIdle + Random(1500)));
+        DebugIt('Time: ' + ToStr(TimeFromMark(TreeTime)));
+        Result := IsLoggedIn and (InvFull or ((TimeFromMark(TreeTime) < MaxIdle) and (Counter < 3)));
+        SMART_ClearMS;
+
+        //Stats
+        IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
+        stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
+        stats_IncVariable('Woodcutting EXP (Gained)', ((InvCount-Count) * YewLogExp));
+        stats_IncVariable('Total EXP Gained', ((InvCount-Count) * YewLogExp));
+        Count := InvCount;
+      end;
     end;
     AntiRandoms;
   end;
+
+  if not IsLoggedIn then
+    TakeScreen('TCEFailed');
 
   DebugIt(ToStr(I));
   IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
@@ -852,7 +885,7 @@ var
 begin
   Result := False;
   AntiRandoms;
-  if (not LoggedIn) or InvFull then
+  if (not IsLoggedIn) or InvFull then
     Exit;
 
   if InTreeArea(It) then
@@ -865,7 +898,7 @@ begin
 
   MarkTime(MainTimer);
 
-  while LoggedIn and (not FindAYew(Unused)) and (TimeFromMark(MainTimer) < MaxWait) do
+  while IsLoggedIn and (not FindAYew(Unused)) and (TimeFromMark(MainTimer) < MaxWait) do
   begin
     AntiRandoms;
     AntiBan;
@@ -873,13 +906,15 @@ begin
     Wait(RandomRange(100,133));
   end;
 
-  Result := LoggedIn and (TimeFromMark(MainTimer) < MaxWait);
+  Result := IsLoggedIn and (TimeFromMark(MainTimer) < MaxWait);
   DebugIt('WaitTree: ' + ToStr(Result));
 end;
 
 procedure Init;
 
 begin
+  if (PaintWait = 0) then
+    Exit;
   Prog := LoadBitmap(ThePath);
   SMART_DrawBitmap(True,Prog,Point(MCX1,MCY1));
   SetLength(PaintArray,6);
@@ -888,7 +923,6 @@ end;
 Procedure FreeMe;
 
 begin
-  FreeBitmap(Prog);
   Report(True);
   Writeln('"Bye Guys" - Yago');
 end;
@@ -901,7 +935,7 @@ var
 
 begin
   repeat
-    if not LoggedIn then
+    if not IsLoggedIn then
       LoginPlayer
     else
       PlayerStartTime := GetSystemTime;
@@ -916,7 +950,7 @@ begin
     WaitAttempts := 0;
     MarkTime(ReportTimer);
     MarkTime(PaintTimer);
-    while LoggedIn and (WaitAttempts <= MaxWaits) do
+    while IsLoggedIn and (WaitAttempts <= MaxWaits) do
     begin
       AntiRandoms;
       Report(False);
@@ -926,10 +960,12 @@ begin
       case lowercase(Event) of
         'banking':
         if WalkTo('Bank') then
-        begin
-          BankIt;
-          AssignStatus('Trees');
-        end;
+          if BankIt then
+          begin
+            stats_IncVariable('Times Banked', 1)
+            AssignStatus('Trees');
+          end else
+            AssignStatus('LogOut');
 
         'trees':
         begin
@@ -961,6 +997,7 @@ begin
         'logout': LogOut;
       end;
     end;
+    TakeScreen('Loggin');
     NextPlayer(False);
   until AllPlayersInactive;
 end;
@@ -978,6 +1015,11 @@ begin
   SetupSRL;
   SPS_Setup(RUNESCAPE_SURFACE, ['10_6']);
   SMART_ClearCanvas;
+
+  if (Stats_UserID = '') then
+    SetupSRLStats(919, 'YagoScripts', 'abcdefghij')
+  else
+    SetupSRLStats(919, Stats_UserID, Stats_Password);
 
   DeclarePlayers;
   SetPlayers;
