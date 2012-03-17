@@ -1,0 +1,989 @@
+Program TheCutingEdge;
+
+{$DEFINE SMART}
+{$DEFINE SRL5}
+{$i SRL/SRL.simba}
+{$i SPS/SPS.simba}
+{$i SRL/SRL/misc/paintsmart.simba}
+
+const
+                         {----SMART Setup Constants----}
+  WORLD = 10;                      // Choose What Server To Load. Set As 0 For Random Sever.
+  MEMBERS = False;                 // Member's Server? True = Members. False = Non-Members.
+                         {-----------------------------}
+
+  Stats_UserID    = '';            // SRL Stats ID (Leave Blank If None).
+  Stats_Password  = '';            // SRL Stats Password (Leave Blank If None).
+
+  DebugScript     = False;         // Set To True To Debug The Script.
+  AutoUpdate      = True;          // Check For And Download The Newest Script Version.
+
+  AntiBanAmount   = 1;             // 0 = 0% Chance. 100 = 100%.
+  ReportWait      = 30;            // How Often In Seconds To Print A Text Report
+  PaintWait       = 50;            // How Often In Miliseconds To Print On Screen. Set To 0 For No Paint
+
+
+Type
+  MyPlayer = Record
+    Name, Pass, Pin: string;
+    Member,Active, AxeWielded: Boolean;
+    WalkInfo: Array of Boolean;
+    Logs, Exp, LogH, ExpH, LampSkill: Integer;
+    BoxRewards: TStringArray;
+  End;
+
+var MyPlayers: Array of MyPlayer;
+
+procedure DeclarePlayers;
+begin
+  HowManyPlayers := 1;
+  CurrentPlayer := 0;
+
+  NumberOfPlayers(HowManyPlayers);
+  setlength(MyPlayers, HowManyPlayers);
+
+  stats_Username := '';
+  stats_UserPass := '';
+
+  With MyPlayers[0] do
+  begin
+    Name        := '';           //Character Name
+    Pass        := '';           //Character Pass
+    Pin         := '';           //Pin for bank
+    Member      := False;        //True = Members Account & False = Non-Members Account.
+    Active      := True;         //Use player in script?
+    AxeWielded  := True;         //Is You Axe Wielded? Yes = True and No = False. If No then place axe in first slot.
+    BoxRewards  := ['XP','Lamp'];
+    LampSkill   := SKILL_WOODCUTTING;
+  end;
+end;
+
+{Do Not Touch Below Unless Instructed To!!!}
+const
+  //Version And Paths
+  Version     = '0.2';                            //Script Version;
+  ThePath     = AppPath + '/Scripts/TCEProg.png'; // Image Path;
+
+  //Script-Function Wait Times
+  MaxWait     = 100000; //How much time to wait for a tree after checking the previous tree.
+  MaxWaits    = 10;     //How many times to go from tree to tree without success before logging out.
+  MaxWalks    = 4;      //Maximum Attempts To Repeat Walking If Failed
+  MaxIdle     = 60000;  //Failsafe Time To Idle While Chopping
+
+  //Color-Related Constants
+  Accuracy        = 200;     //Do Not Change This
+  TreeLeavesColor = 2113332; //Tol = 3
+  TreeTrunkColor  = 1120536; //Tol = 1; CTS = 1;
+  BankerColor     = 3678760;
+  BankerHue       = 0.06;
+  BankerSat       = 0.45;
+  BankerHSLTol    = 10;
+
+  //Axes
+  Rune_Axe    = 0;
+  Addy_Axe    = 1;
+  Mith_Axe    = 2;
+  Steel_Axe   = 3;
+  Black_Axe   = 4;
+  Iron_Axe    = 5;
+  Bronze_Axe  = 6;
+
+var
+  Event: string;
+  ReportTimer, PaintTimer, Prog: Integer;
+  PaintArray: TStringArray;
+
+Procedure DebugIt(Text: string);
+
+begin
+  if DebugScript then
+    Writeln(Text);
+end;
+
+{*******************************************************************************
+function DownloadToFile(const URL, Filename: string): boolean;
+By: Dgby714. Editted By Yago.
+Description: Downloading file from URL to Filename.
+*******************************************************************************}
+function DownloadToFile(const URL, Filename: string): boolean;
+var
+  FileI: LongInt;
+  FileC, FileH: string;
+begin
+  Writeln('Paint File Check.');
+  Result := False;
+  FileI := InitializeHTTPClient(False,False);
+  try
+    FileC := GetHTTPPage(FileI, URL);
+    FileH := GetRawHeaders(FileI);
+
+    if ((FileC = '') or (FileH = '')) then
+    begin
+      WriteLn('Error downloading "' + URL + '".');
+      Exit;
+    end;
+
+    FileH := Copy(GetRawHeaders(FileI), 10, Pos(#13, FileH) - 10); //Error Code
+    if (FileH <> '200 OK') then
+    begin
+      WriteLn('Couldn''t download "' + URL + '", Error Code: ' + FileH + '.');
+      Exit;
+    end;
+  finally
+    FreeHTTPClient(FileI);
+  end;
+
+  try
+    if not FileExists(Filename) then
+      FileI := CreateFile(Filename)
+    else
+      FileI := OpenFile(Filename, False);
+
+    CloseFile(FileI);
+
+    FileI := RewriteFile(Filename, False);
+    Result := WriteFileString(FileI, FileC);
+  finally
+    CloseFile(FileI);
+  end;
+end;
+
+{*******************************************************************************
+
+Procedure ScriptUpdate;
+Description: Checks For Newer Versions Of The Script And Updates The Script If
+             The User Sets The Update Constant;
+Authors: Harry. Eddited By Me.
+
+*******************************************************************************}
+
+procedure ScriptUpdate;
+var ClientUp, Neifile:integer;
+    OnlineVersion, NewScript, NeiFeilNennen:string;
+begin
+  if AutoUpdate then
+  begin
+    Writeln('Checking For An Updated Script Version.');
+    OnlineVersion := GetPage('http://yagoscripts.netii.net/TCEVersion.html');
+    Writeln(onlineversion);
+    Writeln(Version);
+    if (Length(trim(OnlineVersion)) = 3) and (trim(OnlineVersion) > Version) then
+    begin
+      WriteLn('Newer Version Found Online. Will AutoUpdate.');
+      ClientUp := InitializeHTTPClient(False,False);
+      SetHTTPUserAgent(ClientUp,'Simba');
+      NewScript := GetHTTPPage(ClientUp,'http://yagoscripts.netii.net/TCE-Current.simba');
+      FreeHTTPClient(ClientUp);
+
+      NeiFeilNennen := ScriptPath + 'TheCuttingEdge v'+trim(OnlineVersion)+'.simba';
+      Neifile := Rewritefile(NeiFeilNennen, true);
+      try
+        WriteFileString(Neifile, NewScript);
+      except
+        begin
+          WriteLn('Fatal Error Writing To '+NeiFeilNennen+'!');
+          TerminateScript;
+        end;
+      end;
+      CloseFile(Neifile);
+      WriteLn('New Script Downloaded And Saved To '+NeiFeilNennen+' !! Please Use This!');
+      TerminateScript;
+    end else
+    begin
+      if (Length(trim(OnlineVersion)) <> 3) then
+      begin
+        WriteLn('Version Checking Failed. You Might Be Outdated.');
+        Writeln('Please Check For The Latest Version Online.');
+      end else
+        WriteLn('You Have The Latest Version Of The Script!');
+      Exit;
+    end;
+  end else
+    WriteLn('!!!!! Not Checking For The Latest Version Of This Script. You Might Be Outdated!');
+end;
+
+Procedure SetPlayers;
+var
+  I: Integer;
+begin
+  for I := 0 to High(MyPlayers) do
+  begin
+    Players[i].Name       := MyPlayers[i].Name;
+    Players[i].Pass       := MyPlayers[i].Pass;
+    Players[i].Pin        := MyPlayers[i].Pin;
+    Players[i].Active     := MyPlayers[i].Active;
+    Players[i].Member     := MyPlayers[i].Member;
+    Players[i].WorldInfo  := [MyPlayers[i].Member, -1, False];
+    Players[I].BoxRewards := MyPlayers[i].BoxRewards;
+    Players[i].LampSkill  := MyPlayers[i].LampSkill;
+    MyPlayers[i].Exp      := 0;
+    MyPlayers[i].Logs     := 0;
+    MyPlayers[i].ExpH     := 0;
+    MyPlayers[i].LogH     := 0;
+  end;
+end;
+
+Procedure AntiRandoms;
+
+begin
+  FindNormalRandoms;
+  DebugIt('Ran Procedure AntiRandoms.');
+end;
+
+{*******************************************************************************
+procedure SetAngle(Highest : Boolean);
+By: Raymond, edit by NaumanAkhlaQ. Editted By me
+Description: Sets the mainscreen at highest\lowest angle (Depends on the boolean)
+            Taken From SRL Include.
+*******************************************************************************}
+procedure SetCustomAngle(Highest: Boolean);
+begin
+  if (not LoggedIn) then exit;
+  KeyDown((Integer(not Highest) * 2) + 38);
+  Sleep(1000 + Random(300));
+  KeyUp((Integer(not Highest) * 2) + 38);
+end;
+
+Procedure Maintenance(Angle: string);
+
+begin
+  if not (LoggedIn) then
+    Exit;
+
+  DebugIt('Running Procedure Maintenance(' + Angle +').');
+  AntiRandoms;
+  if not LoggedIn then
+    Exit;
+  SetCustomAngle(True);
+  MakeCompass(Angle);
+end;
+
+Procedure AntiBan;
+
+var
+  I, AB: Integer;
+
+begin
+  if (AntiBanAmount <> 0) then
+  begin
+    if (AntiBanAmount > 100) then
+      AB := 1000
+    else
+      AB := AntiBanAmount * 10;
+    I := Random(90 * (Ceil(1000/AB))) + 1;
+    case I of
+      1: RandomRClick;
+      2,3:
+        begin
+          HoverSkill('woodcutting', False);
+          SleepAndMoveMouse(100);
+        end;
+      4: PickUpMouse;
+      5: RandomAngle(True);
+      6: RandomMovement;
+      7: BoredHuman;
+      8..10: SleepAndMoveMouse(500);
+    end;
+    if (I <= 10) then
+    begin
+      DebugIt('Ran AntiBan Procedure.');
+      Maintenance('W');
+    end;
+  end;
+end;
+
+Procedure AssignStatus(Assignment: string);
+
+begin
+  Event := Assignment;
+end;
+
+Function LoadAxeDTM(Which: Integer): integer;
+
+begin
+  DebugIt('LoadAxeDTM: ' + ToStr(Which));
+  case Which of
+    Rune_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBDbevpDeQgMU48MGLFgMAAAV5oBQQ==');
+    Addy_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbO1iDRVBYBYGBGCG0oxYMBgAAFEzASk=');
+    Mith_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbGYWABVBYBYGBGCG0oxYMBgAAFGZASs=');
+    Steel_Axe:  Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAnJuZCRVBYBYGBGCG0oxYMBgAAHJ3Aa4=');
+    Black_Axe:  Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAzMfLCxVBYBYGBGCG0oxYMBgAACy0AJc=');
+    Iron_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBC7ODpCeQjMCFXDzIAAjFgwGAAAU9cBMg==');
+    Bronze_Axe: Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbG8gAxVBYBYGBGCG0oxYMBgAAEWWAPo=');
+  end;
+end;
+
+function PlayerStartUp: boolean;
+
+var
+  Level,AxeDTM, x, y, I: integer;
+
+begin
+  DebugIt('Function PlayerStartUp.');
+  Result := False;
+  AntiRandoms;
+  if not LoggedIn then
+    Exit;
+
+  CloseBank;
+  ClosePinScreen;
+  SetCustomAngle(True);
+
+  Level := GetSkillLevel(Skill_WoodCutting);
+  DebugIt('WC Level Is ' + ToStr(Level));
+  case Level of
+    41..100: I := Rune_Axe;
+    31..40: I := Addy_Axe;
+    21..30: I := Mith_Axe;
+    6..20: I := Steel_Axe;
+    else
+      I := Bronze_Axe;
+  end;
+
+  if MyPlayers[CurrentPlayer].AxeWielded then
+    Gametab(tab_Equip)
+  else
+    GameTab(tab_Inv);
+
+  for I := I to Bronze_Axe do
+  begin
+    AxeDTM := LoadAxeDTM(I);
+    Result := FindDTM(AxeDTM, x, y, MIX1, MIY1, MIX2, MIY2);
+    FreeDTM(AxeDTM);
+    if Result then
+      Break;
+  end;
+
+  if Result then
+    if InvFull then
+      AssignStatus('Banking')
+    else
+      AssignStatus('Trees');
+  DebugIt('Player['+ ToStr(CurrentPlayer) + '] StartUp: ' + ToStr(Result));
+end;
+
+procedure PrintOnSMART(Force: boolean);//Not Mine, Just Editted
+
+var
+ Log, Exp, Logsh, Exph, Portion, I: Integer;
+ ThePoint: TPoint;
+ V: string;
+
+begin
+  if (PaintWait = 0) or ((not Force) and (TimeFromMark(PaintTimer) < PaintWait)) then
+    Exit;
+  Log := MyPlayers[CurrentPlayer].Logs;
+  Exp := Round(175 * Log);
+  LogsH := Ceil((Log * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+  ExpH := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+  for I := 0 to 5 do
+  begin
+    case I of
+      0:
+      begin
+        V := tostr(Log) + ' Logs';
+        ThePoint := Point(267,62);
+      end;
+
+      1:
+      begin
+        V := tostr(Exp) + ' Exp';
+        ThePoint := Point(267,79);
+      end;
+
+      2:
+      begin
+        V := tostr(ExpH);
+        ThePoint := Point(267,96);
+      end;
+
+      3:
+      begin
+        V := tostr(LogsH) + ' Logs';
+        ThePoint := Point(267,113);
+      end;
+
+      4:
+      begin
+        V := Event;
+        ThePoint := Point(382,64);
+      end;
+
+      5:
+      begin
+        V := MsToTime(GetTimeRunning, Time_Short);
+        ThePoint := Point(421,94);
+      end;
+    end;
+    if V = PaintArray[I] then
+      Continue;
+    Portion := GetMufasaBitmap(Prog).Copy(ThePoint.x, ThePoint.y, ThePoint.x + 76, ThePoint.y + 17).Index;
+    SMART_DrawBitmap(False,Portion,Point(MCX1 + ThePoint.x, MCY1 + ThePoint.y));
+    FreeBitmap(Portion);
+    SMART_DrawTextEx(False,MCX1 + ThePoint.x, MCY1 + ThePoint.y, SmallChars, V, clGreen);
+  end;
+  PaintArray := [tostr(Log) + ' Logs',tostr(Exp) + ' Exp',tostr(ExpH),tostr(LogsH) + ' Logs',Event,MsToTime(GetTimeRunning, Time_Short)];
+  MarkTime(PaintTimer);
+end;
+
+Procedure Report(Final: boolean);
+
+Var
+  Log, TotalLogs, Exp, TotalExp, I: Integer;
+  LogsH, ExpH: LongInt;
+
+begin
+  if Final or ((TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and LoggedIn) then
+  begin
+    for I := 0 to (High(Players)) do
+    begin
+      IncEx(TotalLogs, MyPlayers[I].Logs);
+      IncEx(TotalEXP, Round(175 * MyPlayers[I].Logs));
+      //IncEx(TotalLevels, Players[I].Integers[9]);
+    end;
+    Writeln('[Report]');
+    SRLRandomsReport;
+    WriteLn('*----------------------------------------------------------------*');
+    WriteLn('|                        The Cutting Edge ' + Padr(ToStr(Version), 23) + '|');
+    WriteLn('|                            By: Yago                            |');
+    WriteLn('|----------------------------------------------------------------|');
+    WriteLn('|                    Overall Progress Report                     |');
+    WriteLn('|                                                                |');
+    WriteLn('|           ' + Padr('Total Players : ' + ToStr(HowManyPlayers), 53) + '|');
+    WriteLn('|           ' + Padr('Total Time Running : ' + MsToTime(GetTimeRunning, Time_Abbrev), 53) + '|');
+    WriteLn('|           ' + Padr('Total Logs Chopped : ' + ToStr(TotalLogs), 53) + '|');
+    WriteLn('|           ' + Padr('Total Experience Gained : ' + ToStr(TotalEXP), 53) + '|');
+    //WriteLn('|           ' + Padr('Total Smithing Levels Gained : ' + ToStr(TotalLevels), 53) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('|----------------------------------------------------------------|');
+  end;
+
+  if (Final) then
+    for I := 0 to (High(Players)) do
+    begin
+      Log := MyPlayers[I].Logs;
+      Exp := Round(175 * Log);
+      LogsH := Ceil((Log * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      ExpH := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(I));
+      WriteLn('|                       Individual Report:                       |');
+      WriteLn('|                                                                |');
+      WriteLn('|    ' + Padr('Player[' + ToStr(I) + ']: ' + Players[I].Name, 60) + '|');
+      WriteLn('|                                                                |');
+      //WriteLn('|    ' + Padr('Reason : ' + Players[I].Strings[0], 60) + '|');
+      WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(I), Time_Abbrev), 60) + '|');
+      //if TakeBreaks then
+        //Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[I].Integers[10]) + ' Break(s)', 58) + '|');
+      WriteLn('|    ' + Padr('Logs Chopped : ' + ToStr(Log), 60) + '|');
+      WriteLn('|    ' + Padr('Logs Per Hour : ' + ToStr(LogsH), 60) + '|');
+      WriteLn('|    ' + Padr('Experience Gained : ' + ToStr(Exp), 60) + '|');
+      WriteLn('|    ' + Padr('Experience Per Hour : ' + ToStr(ExpH), 60) + '|');
+      //WriteLn('|    ' + Padr('Smithing Level : ' + ToStr(Players[I].Integers[11]) + '(+' + ToStr(Players[I].Integers[9]) +')', 60) + '|');
+      WriteLn('|                                                                |');
+      WriteLn('*----------------------------------------------------------------*');
+    end
+  else if (TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and LoggedIn then
+  begin
+    Log := MyPlayers[CurrentPlayer].Logs;
+    Exp := Round(175 * Log);
+    LogsH := Ceil((Log * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    ExpH := Ceil((Exp * 60.0 * 60.0 * 1000.0) / PlayerWorked(CurrentPlayer));
+    WriteLn('|                       Individual Report:                       |');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Player[' + ToStr(CurrentPlayer) + ']: ' + MyPlayers[CurrentPlayer].Name, 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('|    ' + Padr('Status : ' + Event, 60) + '|');
+    WriteLn('|    ' + Padr('Time Active : ' + MsToTime(PlayerWorked(CurrentPlayer), Time_Abbrev), 60) + '|');
+    //if TakeBreaks then
+      //Writeln('|      ' + Padr('Breaks Taken : ' + ToStr(Players[CurrentPlayer].Integers[10]) + ' Break(s)', 58) + '|');
+    WriteLn('|    ' + Padr('Logs Chopped : ' + ToStr(Log), 60) + '|');
+    WriteLn('|    ' + Padr('Logs Per Hour : ' + ToStr(LogsH), 60) + '|');
+    WriteLn('|    ' + Padr('Experience Gained : ' + ToStr(Exp), 60) + '|');
+    WriteLn('|    ' + Padr('Experience Per Hour : ' + ToStr(ExpH), 60) + '|');
+    //WriteLn('|    ' + Padr('Smithing Level : ' + ToStr(Players[CurrentPlayer].Integers[11]) + '(+' + ToStr(Players[CurrentPlayer].Integers[9]) +')', 60) + '|');
+    WriteLn('|                                                                |');
+    WriteLn('*----------------------------------------------------------------*');
+    Writeln('[/Report]');
+    MarkTime(ReportTimer);
+  end;
+  PrintOnSMART(Final);
+  if Final then
+    Writeln('[/Report]');
+end;
+
+Function BankOpen: boolean;
+
+begin
+  Result := BankScreen or PinScreen;
+end;
+
+Function OpenEdgeBankNPC: boolean;
+
+var
+  DCTS: Integer; //Defaults
+  DHue, DSat: Extended; //Defaults
+  Bankers: T2DPointArray;
+  Colors: TPointArray;
+  MousePoint: TPoint;
+  x, y, I: Integer;
+
+begin
+  Result := False;
+
+  GetColorspeed2Modifiers(DHue,DSat);
+  DCTS := GetColorToleranceSpeed;
+  ColorToleranceSpeed(2);
+  SetColorspeed2Modifiers(BankerHue,BankerSat);
+  if FindColorsSpiralTolerance(x, y, Colors, BankerColor, MSX1, MSY1, MSX2, MSY2, BankerHSLTol) then
+  begin
+    Bankers := TPAToATPA(Colors, 25);
+    SMART_ClearMS;
+    for I := 0 to High(Bankers) do
+      SMART_DrawDotsEx(False, Bankers[i], clLime);
+    SortATPAFrom(Bankers,Point(MSCX,MSCY));
+    SortATPAFromFirstPoint(Bankers,Point(MSCX,MSCY));
+    for I := 0 to High(Bankers) do
+    begin
+      MousePoint := Bankers[I][Random(High(Bankers[I]))];
+      MMouse(MousePoint.x,MousePoint.y,0,0);
+      if WaitUpTextMulti(['anke','anker','nker'], 500) then
+      begin
+        ClickMouse2(False);
+        if WaitOptionMulti(['Bank B', 'nk B'], 600) then
+          Result := WaitFunc(@BankOpen,50,4000);
+      end;
+      if Result then
+        Break;
+    end;
+  end;
+  SMART_ClearMS;
+  ColorToleranceSpeed(DCTS);
+  SetColorspeed2Modifiers(DHue,DSat);
+end;
+
+Function BankIt: boolean;
+
+var
+  FailSafe: Integer;
+
+begin
+  Result := False;
+  AntiRandoms;
+  if not LoggedIn then
+    Exit;
+
+  Maintenance('n');
+  Report(False);
+  for FailSafe := 0 to 4 do
+    if OpenEdgeBankNPC then
+      break;
+  if (FailSafe <= 4) then
+  begin
+    FailSafe := 0;
+    if PinScreen then
+    repeat
+      Inc(FailSafe);
+      InPin(Players[CurrentPlayer].Pin);
+    until WaitFunc(@BankScreen, 100, 1000) or (FailSafe >= 4);
+    if (FailSafe < 4) then
+    begin
+      FailSafe := 0;
+      repeat
+        Report(False);
+        Inc(FailSafe);
+        if MyPlayers[CurrentPlayer].AxeWielded then
+          Result := DepositAll
+        else
+        begin
+          Deposit(2,28,True);
+          Result := (InvCount = 1);
+        end;
+      until Result or (Failsafe >= 4);
+      if (Failsafe >= 4) then
+        DebugIt('Unable To DepositAll Items In The Inventory.');
+    end else
+      DebugIt('Unable To Open The Bank.');
+  end else
+    DebugIt('Unable To Open The Bank.');
+  DebugIt('BankIt: ' + ToStr(Result));
+end;
+
+function InTreeArea(out SPoints: TPointArray): boolean;
+
+var
+  Check: Integer;
+
+begin
+  Result := False;
+  AntiRandoms;
+
+  Check := 0;
+  repeat
+    Inc(Check);
+    FindSymbols(SPoints,'tree');
+    Result := (Length(SPoints) = 2);
+  until Result or (Check > 10);
+
+  DebugIt('InTreeArea: ' + ToStr(Result));
+end;
+
+function AtNorthTree(P: TPointArray): boolean;
+
+begin
+  AntiRandoms;
+
+  Result := Distance(MMCX,MMCY,P[0].x,P[0].y) > Distance(MMCX,MMCY,P[1].x,P[1].y);
+
+  if (P[0].x > P[1].x) then // if [0] is north
+    Result := not Result;
+end;
+
+procedure DrawPoint(Clear: Boolean; P: TPoint; S: Integer);
+begin
+  SMART_DrawLine(False,Point(P.x-S,P.y-S),Point(P.x+S+1,P.y+S+1),clBlue);
+  SMART_DrawLine(False,Point(P.x-S,P.y-S-1),Point(P.x+S,P.y+S+1),clBlue);
+  SMART_DrawLine(False,Point(P.x-S-1,P.y-S),Point(P.x+S+1,P.y+S),clBlue);
+  SMART_DrawLine(False,Point(P.x-S,P.y+S),Point(P.x+S+1,P.y-S-1),clBlue);
+  SMART_DrawLine(False,Point(P.x-S-1,P.y+S),Point(P.x+S+1,P.y-S),clBlue);
+  SMART_DrawLine(False,Point(P.x-S,P.y+S+1),Point(P.x+S,P.y-S-1),clBlue);
+end;
+
+Function GetTreePoint(North: Boolean; SPoints: TPointArray): TPoint;
+
+begin
+  if (North and (SPoints[0].x < SPoints[1].x)) or
+    ((not North) and (SPoints[0].x > SPoints[1].x)) then
+    tSwap(SPoints[0], SPoints[1]);
+
+  SPoints := MidPoints(SPoints,9);
+
+  SMART_ClearCanvasArea(PointToBox(Point(MMX1,MMY1),Point(MMX2,MMY2)));
+  SMART_DrawDotsEx(False, SPoints, clRed);
+  Result := SPoints[1];
+  DrawPoint(False,SPoints[1],6);
+end;
+
+function WalkTo(Location: string): boolean;
+
+var
+  Attempt, FailSafe: Integer;
+  MainPath, SP: TPointArray;
+  WPoint: TPoint;
+
+begin
+  if not LoggedIn then
+    Exit;
+
+  Result := False;
+
+  Attempt := 0;
+  repeat
+    Report(False);
+    AntiRandoms;
+    if not LoggedIn then
+      Exit;
+
+    Inc(Attempt);
+    MainPath := [Point(4209,2687), Point(4198,2738), Point(4209, 2733)];
+    //TreePath := [Point(4179, 2731), Point(4181, 2764)];
+
+    RunEnergy(20);
+    DebugIt('Walking To ' + ToStr(Location) + ' -- Attempt: ' + ToStr(Attempt));
+    case lowercase(Location) of
+      'bank':
+      begin
+        InvertTPA(MainPath);
+        Result := SPS_WalkPath(MainPath);
+      end;
+
+      'trees': Result := SPS_WalkPath(MainPath);
+
+      'north', 'south':
+      begin
+        Maintenance('W');
+        Report(False);
+
+        if InTreeArea(SP) then
+        begin
+          WPoint := GetTreePoint(lowercase(location) = 'north',SP);
+
+          Result := Distance(MMCX,MMCY,WPoint.x,WPoint.y) < 16;
+          if not Result then
+          begin
+            Mouse(WPoint.x,WPoint.y+RandomRange(3,5),0,0,True);
+            Report(False);
+            if WaitFunc(@IsMoving, 1, 3000 + random(500)) then
+            begin
+              MarkTime(FailSafe);
+              while (TimeFromMark(FailSafe) < 30000) and LoggedIn and InTreeArea(SP) do
+              begin
+                Report(False);
+                Wait(RandomRange(33,55));
+                AntiRandoms;
+                WPoint := GetTreePoint(lowercase(location) = 'north',SP);
+                if (Distance(MMCX,MMCY,WPoint.x,WPoint.y) < 16) then
+                  Break;
+              end;
+            end;
+
+            DebugIt(ToStr(TimeFromMark(FailSafe)));
+
+            Result := (TimeFromMark(FailSafe) < 30000) and InTreeArea(SP);
+          end;
+        end else
+          Result := False;
+      end;
+    end;
+  until Result or (Attempt >= MaxWalks) or (not LoggedIn);
+
+
+  SMART_ClearCanvasArea(PointToBox(Point(MMX1,MMY1),Point(MMX2,MMY2)));
+  DebugIt('WalkTo(' + ToStr(Location) + '): '  + ToStr(Result));
+end;
+
+Function FindAYew(out TreeBox: TBox): boolean;
+
+var
+  TreeColors: TPointArray;
+
+begin
+  Result := False;
+  if not LoggedIn then
+    Exit;
+
+  Result := FindColorsTolerance(TreeColors,TreeLeavesColor,MSX1,MSY1,MSX2,MSY2,3)
+              and (Length(TreeColors) >= Accuracy);
+  TreeBox := GetTPABounds(TreeColors);
+  DebugIt('Length Of Colors Is: ' + tostr(length(TreeColors)));
+  DebugIt('FindAYew: ' + ToStr(Result));
+end;
+
+Function CutAYew(var TreeBox: TBox): boolean;
+
+var
+  MousePoint: TPoint;
+  Colors: TPointArray;
+  Default: Integer;
+
+begin
+  Result := False;
+  if not LoggedIn then
+    Exit;
+
+  DebugIt('Function CutAYew.');
+
+  Default := GetColorToleranceSpeed;
+  SetColorToleranceSpeed(1);
+  if FindColorsTolerance(Colors,TreeTrunkColor,TreeBox.X1,TreeBox.Y1,TreeBox.X2,TreeBox.Y2,1) then
+  begin
+    SMART_ClearMS;
+    SMART_DrawDotsEx(False, Colors, clRed);
+    DebugIt('Length Of Colors Is: ' + tostr(length(Colors)));
+    MousePoint := Colors[Random(High(Colors))];
+    MMouse(MousePoint.x,MousePoint.y-10,5,5);
+    if WaitUpTextMulti(['hop','down','ew'], 500) then
+      ClickMouse2(true);
+    Result := DidRedClick;
+  end else
+    DebugIt('Unable To Find Tree Trunk Colors.');
+
+  SetColorToleranceSpeed(Default);
+  DebugIt('CutAYew: ' + ToStr(Result));
+end;
+
+Function ChopDownYew: boolean;
+
+var
+  Bounds: TBox;
+  TreeTime, Counter, I, Count: Integer;
+
+begin
+  Result := False;
+  AntiRandoms;
+  Report(False);
+  if (not LoggedIn) or InvFull then
+    Exit;
+
+  Count := InvCount;
+  for I := 0 to 3 do
+  if LoggedIn and (not InvFull) and FindAYew(Bounds) then
+  begin
+    DebugIt(ToStr(I));
+    Maintenance('W');
+
+    DebugIt('Found A Yew Tree.');
+    if CutAYew(Bounds) then
+    begin
+      Report(False);
+      DebugIt('Successfully Began To Chop Down Yew.');
+      MarkTime(TreeTime);
+      Counter := 0;
+      repeat
+        Wait(RandomRange(33,50));
+        AntiRandoms;
+        AntiBan;
+        if not FindAYew(Bounds) then
+          Inc(Counter);
+        IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
+        Count := InvCount;
+        Report(False);
+      until InvFull or (Counter >= 3) or (TimeFromMark(TreeTime) >= MaxIdle) or (not LoggedIn);
+      DebugIt('Time: ' + ToStr(TimeFromMark(TreeTime)));
+      Result := LoggedIn and (InvFull or ((TimeFromMark(TreeTime) < MaxIdle) and (Counter < 3)));
+      SMART_ClearMS;
+      IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
+      Count := InvCount;
+    end;
+    AntiRandoms;
+  end;
+
+  DebugIt(ToStr(I));
+  IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
+  Count := InvCount;
+  DebugIt('ChopDownYew: ' + ToStr(Result));
+end;
+
+Function WaitTree: boolean;
+
+var
+  MainTimer: Integer;
+  Unused: TBox;
+  It: TPointArray;
+
+begin
+  Result := False;
+  AntiRandoms;
+  if (not LoggedIn) or InvFull then
+    Exit;
+
+  if InTreeArea(It) then
+    if AtNorthTree(It) then
+      WalkTo('South')
+    else
+      WalkTo('North')
+  else
+    Exit;
+
+  MarkTime(MainTimer);
+
+  while LoggedIn and (not FindAYew(Unused)) and (TimeFromMark(MainTimer) < MaxWait) do
+  begin
+    AntiRandoms;
+    AntiBan;
+    Report(False);
+    Wait(RandomRange(100,133));
+  end;
+
+  Result := LoggedIn and (TimeFromMark(MainTimer) < MaxWait);
+  DebugIt('WaitTree: ' + ToStr(Result));
+end;
+
+procedure Init;
+
+begin
+  Prog := LoadBitmap(ThePath);
+  SMART_DrawBitmap(True,Prog,Point(MCX1,MCY1));
+  SetLength(PaintArray,6);
+end;
+
+Procedure FreeMe;
+
+begin
+  FreeBitmap(Prog);
+  Report(True);
+  Writeln('"Bye Guys" - Yago');
+end;
+
+procedure MainLoop;
+
+var
+  WaitAttempts: Integer;
+  Unused: TPointArray;
+
+begin
+  repeat
+    if not LoggedIn then
+      LoginPlayer
+    else
+      PlayerStartTime := GetSystemTime;
+
+    if not PlayerStartUp then
+    begin
+      AssignStatus('Logout');
+      DebugIt('Aborting!');
+      Exit;
+    end;
+
+    WaitAttempts := 0;
+    MarkTime(ReportTimer);
+    MarkTime(PaintTimer);
+    while LoggedIn and (WaitAttempts <= MaxWaits) do
+    begin
+      AntiRandoms;
+      Report(False);
+      if InvFull then
+        AssignStatus('Banking');
+      Writeln('Status: ' + Event);
+      case lowercase(Event) of
+        'banking':
+        if WalkTo('Bank') then
+        begin
+          BankIt;
+          AssignStatus('Trees');
+        end;
+
+        'trees':
+        begin
+          if not InTreeArea(Unused) then
+            if not WalkTo('Trees') then
+              AssignStatus('LogOut');
+
+          if WalkTo('South') then
+            AssignStatus('Chopping')
+          else
+            AssignStatus('LogOut');
+        end;
+
+        'chopping':
+        if not ChopDownYew then
+        begin
+          AssignStatus('Waiting');
+          WaitAttempts := 0;
+        end;
+
+        'waiting':
+        if not WaitTree then
+        begin
+          Inc(WaitAttempts);
+          DebugIt('Wait Attempt: ' + ToStr(WaitAttempts));
+        end else
+          AssignStatus('Chopping');
+
+        'logout': LogOut;
+      end;
+    end;
+    NextPlayer(False);
+  until AllPlayersInactive;
+end;
+
+begin
+  ClearDebug;
+
+  ScriptUpdate;
+  DownloadToFile('http://yagoscripts.netii.net/TCEProg.png',ThePath);
+
+  Smart_Server  := WORLD;
+  Smart_Members := MEMBERS;
+  Smart_Signed  := True;
+
+  SetupSRL;
+  SPS_Setup(RUNESCAPE_SURFACE, ['10_6']);
+  SMART_ClearCanvas;
+
+  DeclarePlayers;
+  SetPlayers;
+
+  Init;
+  AddOnTerminate('FreeMe');
+
+  MainLoop;
+end.
