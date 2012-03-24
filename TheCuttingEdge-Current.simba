@@ -47,7 +47,7 @@ begin
     Name        := '';           //Character Name
     Pass        := '';           //Character Pass
     Pin         := '';           //Pin for bank
-    Member      := False;        //True = Members Account &amp; False = Non-Members Account.
+    Member      := False;        //True = Members Account & False = Non-Members Account.
     Active      := True;         //Use player in script?
     AxeWielded  := True;         //Is You Axe Wielded? Yes = True and No = False. If No then place axe in first slot.
     BoxRewards  := ['XP','Lamp'];
@@ -126,7 +126,7 @@ begin
     end;
 
     FileH := Copy(GetRawHeaders(FileI), 10, Pos(#13, FileH) - 10); //Error Code
-    if (FileH &lt;&gt; '200 OK') then
+    if (FileH <> '200 OK') then
     begin
       WriteLn('Couldn''t download "' + URL + '", Error Code: ' + FileH + '.');
       Exit;
@@ -169,7 +169,7 @@ begin
     OnlineVersion := GetPage('http://yagoscripts.netii.net/TCEVersion.html');
     Writeln(onlineversion);
     Writeln(Version);
-    if (Length(trim(OnlineVersion)) = 3) and (trim(OnlineVersion) &gt; Version) then
+    if (Length(trim(OnlineVersion)) = 3) and (trim(OnlineVersion) > Version) then
     begin
       WriteLn('Newer Version Found Online. Will AutoUpdate.');
       ClientUp := InitializeHTTPClient(False,False);
@@ -192,7 +192,7 @@ begin
       TerminateScript;
     end else
     begin
-      if (Length(trim(OnlineVersion)) &lt;&gt; 3) then
+      if (Length(trim(OnlineVersion)) <> 3) then
       begin
         WriteLn('Version Checking Failed. You Might Be Outdated.');
         Writeln('Please Check For The Latest Version Online.');
@@ -238,12 +238,12 @@ var
 begin
   //Failsafe for the onFocus bug with SMART. The screen goes black for a few ms when focusing on SMART.
   AntiRandoms;
-  Result := (PercentBlackMM &lt;&gt; 100) and LoggedIn;
+  Result := (PercentBlackMM <> 100) and LoggedIn;
   MarkTime(Timer);
-  while (not Result) and (TimeFromMark(Timer) &lt;= TLoggedIn) do
+  while (not Result) and (TimeFromMark(Timer) <= TLoggedIn) do
   begin
     AntiRandoms;
-    Result := (PercentBlackMM &lt;&gt; 100) and LoggedIn;
+    Result := (PercentBlackMM <> 100) and LoggedIn;
   end;
   DebugIt('IsLoggedIn: ' + ToStr(Result));
 end;
@@ -279,9 +279,9 @@ var
   I, AB: Integer;
 
 begin
-  if (AntiBanAmount &lt;&gt; 0) then
+  if (AntiBanAmount <> 0) then
   begin
-    if (AntiBanAmount &gt; 100) then
+    if (AntiBanAmount > 100) then
       AB := 1000
     else
       AB := AntiBanAmount * 10;
@@ -299,7 +299,7 @@ begin
       7: BoredHuman;
       8..10: SleepAndMoveMouse(500);
     end;
-    if (I &lt;= 10) then
+    if (I <= 10) then
     begin
       DebugIt('Ran AntiBan Procedure.');
       Maintenance('W');
@@ -384,7 +384,7 @@ var
  V: string;
 
 begin
-  if (PaintWait = 0) or ((not Force) and (TimeFromMark(PaintTimer) &lt; PaintWait)) then
+  if (PaintWait = 0) or ((not Force) and (TimeFromMark(PaintTimer) < PaintWait)) then
     Exit;
   Log := MyPlayers[CurrentPlayer].Logs;
   Exp := Round(175 * Log);
@@ -449,7 +449,7 @@ Var
 begin
   if (stats_Commit) then
     Writeln('Stats Committed.');
-  if Final or ((TimeFromMark(ReportTimer) &gt;= (ReportWait * 1000)) and IsLoggedIn) then
+  if Final or ((TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and IsLoggedIn) then
   begin
     for I := 0 to (High(Players)) do
     begin
@@ -497,7 +497,7 @@ begin
       WriteLn('|                                                                |');
       WriteLn('*----------------------------------------------------------------*');
     end
-  else if (TimeFromMark(ReportTimer) &gt;= (ReportWait * 1000)) and IsLoggedIn then
+  else if (TimeFromMark(ReportTimer) >= (ReportWait * 1000)) and IsLoggedIn then
   begin
     Log := MyPlayers[CurrentPlayer].Logs;
     Exp := Round(YewLogExp * Log);
@@ -591,15 +591,15 @@ begin
   for FailSafe := 0 to 4 do
     if OpenEdgeBankNPC then
       break;
-  if (FailSafe &lt;= 4) then
+  if (FailSafe <= 4) then
   begin
     FailSafe := 0;
     if PinScreen then
     repeat
       Inc(FailSafe);
       InPin(Players[CurrentPlayer].Pin);
-    until WaitFunc(@BankScreen, 100, 1000) or (FailSafe &gt;= 4);
-    if (FailSafe &lt; 4) then
+    until WaitFunc(@BankScreen, 100, 1000) or (FailSafe >= 4);
+    if (FailSafe < 4) then
     begin
       FailSafe := 0;
       repeat
@@ -612,7 +612,7 @@ begin
           Deposit(2,28,True);
           Result := (InvCount = 1);
         end;
-      until Result or (Failsafe &gt;= 4);
+      until Result or (Failsafe >= 4);
       if not Result then
         DebugIt('Unable To DepositAll Items In The Inventory.');
     end else
@@ -636,7 +636,7 @@ begin
     Inc(Check);
     FindSymbols(SPoints,'tree');
     Result := (Length(SPoints) = 2);
-  until Result or (Check &gt; 10);
+  until Result or (Check > 10);
 
   DebugIt('InTreeArea: ' + ToStr(Result));
 end;
@@ -646,9 +646,9 @@ function AtNorthTree(P: TPointArray): boolean;
 begin
   AntiRandoms;
 
-  Result := Distance(MMCX,MMCY,P[0].x,P[0].y) &gt; Distance(MMCX,MMCY,P[1].x,P[1].y);
+  Result := Distance(MMCX,MMCY,P[0].x,P[0].y) > Distance(MMCX,MMCY,P[1].x,P[1].y);
 
-  if (P[0].x &gt; P[1].x) then // if [0] is north
+  if (P[0].x > P[1].x) then // if [0] is north
     Result := not Result;
 end;
 
@@ -665,8 +665,8 @@ end;
 Function GetTreePoint(North: Boolean; SPoints: TPointArray): TPoint;
 
 begin
-  if (North and (SPoints[0].x &lt; SPoints[1].x)) or
-    ((not North) and (SPoints[0].x &gt; SPoints[1].x)) then
+  if (North and (SPoints[0].x < SPoints[1].x)) or
+    ((not North) and (SPoints[0].x > SPoints[1].x)) then
     tSwap(SPoints[0], SPoints[1]);
 
   SPoints := MidPoints(SPoints,9);
@@ -720,7 +720,7 @@ begin
         begin
           WPoint := GetTreePoint(lowercase(location) = 'north',SP);
 
-          Result := Distance(MMCX,MMCY,WPoint.x,WPoint.y) &lt; 16;
+          Result := Distance(MMCX,MMCY,WPoint.x,WPoint.y) < 16;
           if not Result then
           begin
             Mouse(WPoint.x,WPoint.y+RandomRange(3,5),0,0,True);
@@ -728,10 +728,10 @@ begin
             if WaitFunc(@IsMoving, 1, 3000 + random(500)) then
             begin
               MarkTime(FailSafe);
-              while (TimeFromMark(FailSafe) &lt; 30000) and IsLoggedIn and InTreeArea(SP) do
+              while (TimeFromMark(FailSafe) < 30000) and IsLoggedIn and InTreeArea(SP) do
               begin
                 WPoint := GetTreePoint(lowercase(location) = 'north',SP);
-                if (Distance(MMCX,MMCY,WPoint.x,WPoint.y) &lt; 16) then
+                if (Distance(MMCX,MMCY,WPoint.x,WPoint.y) < 16) then
                   Break;
                 Wait(RandomRange(33,55));
                 Report(False);
@@ -740,13 +740,13 @@ begin
 
             DebugIt(ToStr(TimeFromMark(FailSafe)));
 
-            Result := (TimeFromMark(FailSafe) &lt; 30000) and InTreeArea(SP);
+            Result := (TimeFromMark(FailSafe) < 30000) and InTreeArea(SP);
           end;
         end else
           Result := False;
       end;
     end;
-  until Result or (Attempt &gt;= MaxWalks) or (not IsLoggedIn);
+  until Result or (Attempt >= MaxWalks) or (not IsLoggedIn);
 
   stats_IncVariable('Times Walked', 1);
   SMART_ClearCanvasArea(PointToBox(Point(MMX1,MMY1),Point(MMX2,MMY2)));
@@ -764,7 +764,7 @@ begin
     Exit;
 
   Result := FindColorsTolerance(TreeColors,TreeLeavesColor,MSX1,MSY1,MSX2,MSY2,3)
-              and (Length(TreeColors) &gt;= Accuracy);
+              and (Length(TreeColors) >= Accuracy);
 
   TreeBox := GetTPABounds(TreeColors);
   //DebugIt('Length Of Colors Is: ' + tostr(length(TreeColors)));
@@ -833,14 +833,14 @@ begin
         DebugIt('Successfully Began To Chop Down Yew.');
         MarkTime(TreeTime);
         Counter := 0;
-        while IsLoggedIn and (not InvFull) and (Counter &lt; 3) and (TimeFromMark(TreeTime) &lt; (MaxIdle + Random(1500))) do
+        while IsLoggedIn and (not InvFull) and (Counter < 3) and (TimeFromMark(TreeTime) < (MaxIdle + Random(1500))) do
         begin;
           AntiBan;
           if not FindAYew(Bounds) then
             Inc(Counter);
 
           //Stats
-          if Count &lt;&gt; InvCount then
+          if Count <> InvCount then
           begin
             IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
             stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
@@ -853,11 +853,11 @@ begin
           Wait(RandomRange(50,66));
         end;
         DebugIt('Time: ' + ToStr(TimeFromMark(TreeTime)));
-        Result := IsLoggedIn and (InvFull or ((TimeFromMark(TreeTime) &lt; MaxIdle) and (Counter &lt; 3)));
+        Result := IsLoggedIn and (InvFull or ((TimeFromMark(TreeTime) < MaxIdle) and (Counter < 3)));
         SMART_ClearMS;
 
         //Stats
-        if Count &lt;&gt; InvCount then
+        if Count <> InvCount then
         begin
           IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
           stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
@@ -870,7 +870,7 @@ begin
   end;
 
   //Stats
-  if Count &lt;&gt; InvCount then
+  if Count <> InvCount then
   begin
     IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
     stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
@@ -904,14 +904,14 @@ begin
 
   MarkTime(MainTimer);
 
-  while IsLoggedIn and (not FindAYew(Unused)) and (TimeFromMark(MainTimer) &lt; MaxWait) do
+  while IsLoggedIn and (not FindAYew(Unused)) and (TimeFromMark(MainTimer) < MaxWait) do
   begin
     AntiBan;
     Report(False);
     Wait(RandomRange(100,133));
   end;
 
-  Result := IsLoggedIn and (TimeFromMark(MainTimer) &lt; MaxWait);
+  Result := IsLoggedIn and (TimeFromMark(MainTimer) < MaxWait);
   DebugIt('WaitTree: ' + ToStr(Result));
 end;
 
@@ -955,7 +955,7 @@ begin
     WaitAttempts := 0;
     MarkTime(ReportTimer);
     MarkTime(PaintTimer);
-    while IsLoggedIn and (WaitAttempts &lt;= MaxWaits) do
+    while IsLoggedIn and (WaitAttempts <= MaxWaits) do
     begin
       Report(False);
       if InvFull then
