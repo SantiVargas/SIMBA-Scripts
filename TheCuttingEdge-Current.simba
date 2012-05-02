@@ -1,15 +1,12 @@
 Program TheCutingEdge;
 
 {$DEFINE SMART}
-{$DEFINE SRL5}
 {$i SRL/SRL.simba}
-{$i SPS/SPS.simba}
-{$i SRL/SRL/misc/paintsmart.simba}
+{$i ObjectDTM/ObjDTMInclude.simba}
 
 const
                          {----SMART Setup Constants----}
   WORLD = 10;                      // Choose What Server To Load. Set As 0 For Random Sever.
-  MEMBERS = False;                 // Member's Server? True = Members. False = Non-Members.
                          {-----------------------------}
 
   Stats_UserID    = '';            // SRL Stats ID (Leave Blank If None).
@@ -26,8 +23,7 @@ const
 Type
   MyPlayer = Record
     Name, Pass, Pin: string;
-    Member,Active, AxeWielded: Boolean;
-    WalkInfo: Array of Boolean;
+    Member, Active, AxeWielded: Boolean;
     Logs, Exp, LogH, ExpH, LampSkill: Integer;
     BoxRewards: TStringArray;
   End;
@@ -58,7 +54,7 @@ end;
 {Do Not Touch Below Unless Instructed To!!!}
 const
   //Version And Paths
-  Version     = '0.3';                            //Script Version;
+  Version     = '0.4';                            //Script Version;
   ThePath     = ScriptPath + '/TCEProg.png'; // Image Path;
 
   //Script-Function Wait Times
@@ -76,6 +72,11 @@ const
   BankerHue       = 0.06;
   BankerSat       = 0.45;
   BankerHSLTol    = 10;
+
+  //OBJDTM Points
+  MidPoint = '108:49:4:3:7:65:44:3:7:41:63:3:7:95:114:3:7:37:75:4:98:40:98:61:116:61:115:40';
+  BankPoint = '80:35:4:3:7:37:75:10:7:91:40:10:7:91:32:10:7:91:24:4:72:41:83:42:83:24:70:24';
+  ReturnPoint = '81:126:4:1:7:94:30:1:7:122:62:3:7:128:78:10:7:95:64:4:73:111:73:135:90:135:90:111';
 
   //Axes
   Rune_Axe    = 0;
@@ -646,10 +647,7 @@ function AtNorthTree(P: TPointArray): boolean;
 begin
   AntiRandoms;
 
-  Result := Distance(MMCX,MMCY,P[0].x,P[0].y) > Distance(MMCX,MMCY,P[1].x,P[1].y);
-
-  if (P[0].x > P[1].x) then // if [0] is north
-    Result := not Result;
+  Result := ((Distance(MMCX,MMCY,P[0].x,P[0].y) < Distance(MMCX,MMCY,P[1].x,P[1].y)) xor (P[0].x < P[1].x));
 end;
 
 procedure DrawPoint(Clear: Boolean; P: TPoint; S: Integer);
@@ -665,8 +663,11 @@ end;
 Function GetTreePoint(North: Boolean; SPoints: TPointArray): TPoint;
 
 begin
-  if (North and (SPoints[0].x < SPoints[1].x)) or
+  {if (North and (SPoints[0].x < SPoints[1].x)) or
     ((not North) and (SPoints[0].x > SPoints[1].x)) then
+    tSwap(SPoints[0], SPoints[1]);  }
+
+  if not (North xor (SPoints[0].x < SPoints[1].x)) then
     tSwap(SPoints[0], SPoints[1]);
 
   SPoints := MidPoints(SPoints,9);
@@ -681,7 +682,8 @@ function WalkTo(Location: string): boolean;
 
 var
   Attempt, FailSafe: Integer;
-  MainPath, SP: TPointArray;
+  BankPath, TreePath: TStringArray;
+  SP: TPointArray;
   WPoint: TPoint;
 
 begin
@@ -697,19 +699,15 @@ begin
       Exit;
 
     Inc(Attempt);
-    MainPath := [Point(4209,2687), Point(4198,2738), Point(4209, 2733)];
-    //TreePath := [Point(4179, 2731), Point(4181, 2764)];
+    BankPath := [MidPoint, BankPoint];
+    TreePath := [BankPoint, ReturnPoint];
 
     RunEnergy(20);
     DebugIt('Walking To ' + ToStr(Location) + ' -- Attempt: ' + ToStr(Attempt));
     case lowercase(Location) of
-      'bank':
-      begin
-        InvertTPA(MainPath);
-        Result := SPS_WalkPath(MainPath);
-      end;
+      'bank': Result := ObjDTM_WalkPath(BankPath, 3, 50, 20, False, True);
 
-      'trees': Result := SPS_WalkPath(MainPath);
+      'trees': Result := ObjDTM_WalkPath(TreePath, 3, 50, 20, False, True);
 
       'north', 'south':
       begin
@@ -1013,11 +1011,11 @@ begin
   DownloadToFile('http://yagoscripts.netii.net/TCEProg.png',ThePath);
 
   Smart_Server  := WORLD;
-  Smart_Members := MEMBERS;
+  Smart_Members := True;
   Smart_Signed  := True;
 
   SetupSRL;
-  SPS_Setup(RUNESCAPE_SURFACE, ['10_6']);
+  ObjDTM_Setup;
   SMART_ClearCanvas;
 
   if (Stats_UserID = '') then
