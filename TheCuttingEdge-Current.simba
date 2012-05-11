@@ -54,7 +54,7 @@ end;
 {Do Not Touch Below Unless Instructed To!!!}
 const
   //Version And Paths
-  Version     = '0.4';                            //Script Version;
+  Version     = '0.5';                            //Script Version;
   ThePath     = ScriptPath + '/TCEProg.png'; // Image Path;
 
   //Script-Function Wait Times
@@ -74,18 +74,19 @@ const
   BankerHSLTol    = 10;
 
   //OBJDTM Points
-  MidPoint = '108:49:4:3:7:65:44:3:7:41:63:3:7:95:114:3:7:37:75:4:98:40:98:61:116:61:115:40';
-  BankPoint = '80:35:4:3:7:37:75:10:7:91:40:10:7:91:32:10:7:91:24:4:72:41:83:42:83:24:70:24';
+  MidPoint = '107:49:5:1:7:33:48:1:7:34:92:3:7:36:76:3:7:40:64:3:7:24:72:4:99:41:116:41:116:59:99:59';
+  BankPoint = '86:27:3:3:7:41:72:10:7:101:33:10:7:101:25:4:98:14:77:14:77:37:98:37';
   ReturnPoint = '81:126:4:1:7:94:30:1:7:122:62:3:7:128:78:10:7:95:64:4:73:111:73:135:90:135:90:111';
 
   //Axes
-  Rune_Axe    = 0;
-  Addy_Axe    = 1;
-  Mith_Axe    = 2;
-  Steel_Axe   = 3;
-  Black_Axe   = 4;
-  Iron_Axe    = 5;
-  Bronze_Axe  = 6;
+  Dragon_Axe  = 0;
+  Rune_Axe    = 1;
+  Addy_Axe    = 2;
+  Mith_Axe    = 3;
+  Steel_Axe   = 4;
+  Black_Axe   = 5;
+  Iron_Axe    = 6;
+  Bronze_Axe  = 7;
 
   //Other
   YewLogExp   = 175;
@@ -319,6 +320,7 @@ Function LoadAxeDTM(Which: Integer): integer;
 begin
   DebugIt('LoadAxeDTM: ' + ToStr(Which));
   case Which of
+    Dragon_Axe: Result := DTMFromString('mbQAAAHicY2VgYLjKwsBwAIhvAPEdID4BxF+B4hyMDAz/gPQnIP4GxJ78XECSCQUDlWAARiwYDADXZQh/');
     Rune_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBDbevpDeQgMU48MGLFgMAAAV5oBQQ==');
     Addy_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbO1iDRVBYBYGBGCG0oxYMBgAAFEzASk=');
     Mith_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbGYWABVBYBYGBGCG0oxYMBgAAFGZASs=');
@@ -347,10 +349,11 @@ begin
   Level := GetSkillLevel(Skill_WoodCutting);
   DebugIt('WC Level Is ' + ToStr(Level));
   case Level of
-    41..100: I := Rune_Axe;
-    31..40: I := Addy_Axe;
-    21..30: I := Mith_Axe;
-    6..20: I := Steel_Axe;
+    61..100: I := Dragon_Axe;
+    41..60:  I := Rune_Axe;
+    31..40:  I := Addy_Axe;
+    21..30:  I := Mith_Axe;
+    6..20:   I := Steel_Axe;
     else
       I := Bronze_Axe;
   end;
@@ -663,10 +666,6 @@ end;
 Function GetTreePoint(North: Boolean; SPoints: TPointArray): TPoint;
 
 begin
-  {if (North and (SPoints[0].x < SPoints[1].x)) or
-    ((not North) and (SPoints[0].x > SPoints[1].x)) then
-    tSwap(SPoints[0], SPoints[1]);  }
-
   if not (North xor (SPoints[0].x < SPoints[1].x)) then
     tSwap(SPoints[0], SPoints[1]);
 
@@ -676,6 +675,40 @@ begin
   SMART_DrawDotsEx(False, SPoints, clRed);
   Result := SPoints[1];
   DrawPoint(False,SPoints[1],6);
+end;
+
+function ObjDTM_WalkPathEx(Path: TStringArray; Tries: Integer): Boolean;
+
+var
+  I, X, Attempts: Integer;
+
+begin
+  Result := ObjDTM_InArea(Path[High(Path)], True);
+  if Result then
+    Exit;
+
+  Attempts := 0;
+  while (Attempts < Tries) do
+  begin
+    for I := High(Path) downto 0 do
+      if ObjDTM_Find(Path[I], X, X, True) then
+        Break;
+
+    if I < 0 then
+    begin
+      Inc(Attempts);
+      Continue;
+    end;
+
+    Result := ObjDTM_Walk(Path[I], 0, 50, 10, True);
+
+    if not Result then
+      Inc(Attempts);
+
+    if Result and (I = High(Path)) then
+      Break;
+  end;
+  Result := ObjDTM_InArea(Path[High(Path)], True);
 end;
 
 function WalkTo(Location: string): boolean;
@@ -705,9 +738,9 @@ begin
     RunEnergy(20);
     DebugIt('Walking To ' + ToStr(Location) + ' -- Attempt: ' + ToStr(Attempt));
     case lowercase(Location) of
-      'bank': Result := ObjDTM_WalkPath(BankPath, 3, 50, 20, False, True);
+      'bank': Result := ObjDTM_WalkPathEx(BankPath, 5);
 
-      'trees': Result := ObjDTM_WalkPath(TreePath, 3, 50, 20, False, True);
+      'trees': Result := ObjDTM_WalkPathEx(TreePath, 5);
 
       'north', 'south':
       begin
@@ -961,13 +994,12 @@ begin
       Writeln('Status: ' + Event);
       case lowercase(Event) of
         'banking':
-        if WalkTo('Bank') then
-          if BankIt then
-          begin
-            stats_IncVariable('Times Banked', 1)
-            AssignStatus('Trees');
-          end else
-            AssignStatus('LogOut');
+        if WalkTo('Bank') and BankIt then
+        begin
+          stats_IncVariable('Times Banked', 1)
+          AssignStatus('Trees');
+        end else
+          AssignStatus('LogOut');
 
         'trees':
         begin
