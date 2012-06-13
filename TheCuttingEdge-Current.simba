@@ -12,8 +12,8 @@ const
   Stats_UserID    = '';            // SRL Stats ID (Leave Blank If None).
   Stats_Password  = '';            // SRL Stats Password (Leave Blank If None).
 
-  DebugScript     = False;         // Set To True To Debug The Script.
-  AutoUpdate      = True;          // Check For And Download The Newest Script Version.
+  Debug_Script    = False;         // Set To True To Debug The Script.
+  Auto_Update     = True;          // Check For And Download The Newest Script Version.
 
   AntiBanAmount   = 1;             // 0 = 0% Chance. 100 = 100%.
   ReportWait      = 60;            // How Often In Seconds To Print A Text Report
@@ -26,6 +26,11 @@ Type
     Member, Active, AxeWielded: Boolean;
     Logs, Exp, LogH, ExpH, LampSkill: Integer;
     BoxRewards: TStringArray;
+  End;
+  MyColor = Record
+    Color, Tol, CTS, Accuracy: Integer;
+    Sat, Hue: Extended;
+    Uptexts: TStringArray;
   End;
 
 var MyPlayers: Array of MyPlayer;
@@ -54,7 +59,7 @@ end;
 {Do Not Touch Below Unless Instructed To!!!}
 const
   //Version And Paths
-  Version     = '0.5';                            //Script Version;
+  Version     = '0.6';                       //Script Version;
   ThePath     = ScriptPath + '/TCEProg.png'; // Image Path;
 
   //Script-Function Wait Times
@@ -65,20 +70,10 @@ const
   MaxRetry    = 4;      //Max Number of times to retry chopping script while idle
 
   //Color-Related Constants
-  Accuracy        = 200;     //Do Not Change This
-  TreeLeavesColor = 2113332; //Tol = 3
-  TreeTrunkColor  = 1120536; //Tol = 1; CTS = 1;
-  BankerColor     = 3678760;
-  BankerHue       = 0.06;
-  BankerSat       = 0.45;
-  BankerHSLTol    = 10;
+  DHue        = 0.2;
+  DSat        = 0.2;    //Default Hue And Sat
 
-  //OBJDTM Points
-  MidPoint = '107:49:5:1:7:33:48:1:7:34:92:3:7:36:76:3:7:40:64:3:7:24:72:4:99:41:116:41:116:59:99:59';
-  BankPoint = '86:27:3:3:7:41:72:10:7:101:33:10:7:101:25:4:98:14:77:14:77:37:98:37';
-  ReturnPoint = '81:126:4:1:7:94:30:1:7:122:62:3:7:128:78:10:7:95:64:4:73:111:73:135:90:135:90:111';
-
-  //Axes
+  //Axe Constants
   Dragon_Axe  = 0;
   Rune_Axe    = 1;
   Addy_Axe    = 2;
@@ -92,6 +87,15 @@ const
   YewLogExp   = 175;
   TLoggedIn   = 4000;
 
+  //Object Constats
+  OBJ_Banker      = 0;
+  OBJ_TreeTrunk   = 1;
+  OBJ_TreeLeaves  = 2;
+
+  //OBJDTM Points
+  ObjDTM_Bank   = '81:80:7:1:7:121:67:1:7:92:32:10:7:91:66:10:7:87:71:10:7:87:79:10:7:87:88:3:7:127:84';
+  ObjDTM_Middle = '79:125:7:1:7:121:67:1:7:92:32:10:7:91:66:10:7:87:71:10:7:87:79:10:7:87:88:3:7:127:84';
+
 var
   Event: string;
   ReportTimer, PaintTimer, Prog: Integer;
@@ -100,8 +104,57 @@ var
 Procedure DebugIt(Text: string);
 
 begin
-  if DebugScript then
+  if Debug_Script then
     Writeln(Text);
+end;
+
+Procedure Init;
+
+begin
+  {Paint}
+  if (PaintWait <> 0) then
+  begin
+    Prog := LoadBitmap(ThePath);
+    SMART_DrawBitmap(True,Prog,Point(MCX1,MCY1));
+    SetLength(PaintArray,6);
+  end;
+end;
+
+Function LoadObject(Which: Integer): MyColor;
+
+begin
+  case Which of
+
+    OBJ_Banker:
+      with Result do
+      begin
+        Color    := 3678760;
+        Hue      := 0.06;
+        Sat      := 0.45;
+        Tol      := 10;
+        CTS      := 2;
+        Accuracy := 100;
+        Uptexts  := ['Bank B', 'nk B'];
+      end;
+
+    OBJ_TreeTrunk:
+      with Result do
+      begin
+        Color    := 1120536;
+        Tol      := 1;
+        CTS      := 1;
+        Uptexts  := ['Chop','down','Yew','hop d','wn Y'];
+      end;
+
+    OBJ_TreeLeaves:
+      with Result do
+      begin
+        Color    := 2113332;
+        Tol      := 3;
+        CTS      := 0;
+        Accuracy := 200;
+      end;
+  end;
 end;
 
 {*******************************************************************************
@@ -109,7 +162,7 @@ function DownloadToFile(const URL, Filename: string): boolean;
 By: Dgby714. Editted By Yago.
 Description: Downloading file from URL to Filename.
 *******************************************************************************}
-function DownloadToFile(const URL, Filename: string): boolean;
+Function DownloadToFile(const URL, Filename: string): boolean;
 var
   FileI: LongInt;
   FileC, FileH: string;
@@ -160,12 +213,11 @@ Description: Checks For Newer Versions Of The Script And Updates The Script If
 Authors: Harry. Eddited By Me.
 
 *******************************************************************************}
-
-procedure ScriptUpdate;
+Procedure ScriptUpdate;
 var ClientUp, Neifile:integer;
     OnlineVersion, NewScript, NeiFeilNennen:string;
 begin
-  if AutoUpdate then
+  if Auto_Update then
   begin
     Writeln('Checking For An Updated Script Version.');
     OnlineVersion := GetPage('http://yagoscripts.netii.net/TCEVersion.html');
@@ -256,7 +308,7 @@ By: Raymond, edit by NaumanAkhlaQ. Editted By me
 Description: Sets the mainscreen at highest\lowest angle (Depends on the boolean)
             Taken From SRL Include.
 *******************************************************************************}
-procedure SetCustomAngle(Highest: Boolean);
+Procedure SetCustomAngle(Highest: Boolean);
 begin
   if (not IsLoggedIn) then exit;
   KeyDown((Integer(not Highest) * 2) + 38);
@@ -315,72 +367,7 @@ begin
   Event := Assignment;
 end;
 
-Function LoadAxeDTM(Which: Integer): integer;
-
-begin
-  DebugIt('LoadAxeDTM: ' + ToStr(Which));
-  case Which of
-    Dragon_Axe: Result := DTMFromString('mbQAAAHicY2VgYLjKwsBwAIhvAPEdID4BxF+B4hyMDAz/gPQnIP4GxJ78XECSCQUDlWAARiwYDADXZQh/');
-    Rune_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBDbevpDeQgMU48MGLFgMAAAV5oBQQ==');
-    Addy_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbO1iDRVBYBYGBGCG0oxYMBgAAFEzASk=');
-    Mith_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbGYWABVBYBYGBGCG0oxYMBgAAFGZASs=');
-    Steel_Axe:  Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAnJuZCRVBYBYGBGCG0oxYMBgAAHJ3Aa4=');
-    Black_Axe:  Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAzMfLCxVBYBYGBGCG0oxYMBgAACy0AJc=');
-    Iron_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBC7ODpCeQjMCFXDzIAAjFgwGAAAU9cBMg==');
-    Bronze_Axe: Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbG8gAxVBYBYGBGCG0oxYMBgAAEWWAPo=');
-  end;
-end;
-
-function PlayerStartUp: boolean;
-
-var
-  Level,AxeDTM, x, y, I: integer;
-
-begin
-  DebugIt('Function PlayerStartUp.');
-  Result := False;
-  if not IsLoggedIn then
-    Exit;
-
-  CloseBank;
-  ClosePinScreen;
-  SetCustomAngle(True);
-
-  Level := GetSkillLevel(Skill_WoodCutting);
-  DebugIt('WC Level Is ' + ToStr(Level));
-  case Level of
-    61..100: I := Dragon_Axe;
-    41..60:  I := Rune_Axe;
-    31..40:  I := Addy_Axe;
-    21..30:  I := Mith_Axe;
-    6..20:   I := Steel_Axe;
-    else
-      I := Bronze_Axe;
-  end;
-
-  if MyPlayers[CurrentPlayer].AxeWielded then
-    Gametab(tab_Equip)
-  else
-    GameTab(tab_Inv);
-
-  for I := I to Bronze_Axe do
-  begin
-    AxeDTM := LoadAxeDTM(I);
-    Result := FindDTM(AxeDTM, x, y, MIX1, MIY1, MIX2, MIY2);
-    FreeDTM(AxeDTM);
-    if Result then
-      Break;
-  end;
-
-  if Result then
-    if InvFull then
-      AssignStatus('Banking')
-    else
-      AssignStatus('Trees');
-  DebugIt('Player['+ ToStr(CurrentPlayer) + '] StartUp: ' + ToStr(Result));
-end;
-
-procedure PrintOnSMART(Force: boolean);//Not Mine, Just Editted
+Procedure PrintOnSMART(Force: boolean);//Not Mine, Just Editted
 
 var
  Log, Exp, Logsh, Exph, Portion, I: Integer;
@@ -442,6 +429,104 @@ begin
   end;
   PaintArray := [tostr(Log) + ' Logs',tostr(Exp) + ' Exp',tostr(ExpH),tostr(LogsH) + ' Logs',Event,MsToTime(GetTimeRunning, Time_Short)];
   MarkTime(PaintTimer);
+end;
+
+Procedure DrawPoint(Clear: Boolean; P: TPoint; S: Integer);
+begin
+  if Clear then
+    SMART_ClearCanvasArea(IntToBox(MMX1, MMY1, MMX2, MMY2));
+
+  SMART_DrawLine(False,Point(P.x-S,P.y-S),Point(P.x+S+1,P.y+S+1),clBlue);
+  SMART_DrawLine(False,Point(P.x-S,P.y-S-1),Point(P.x+S,P.y+S+1),clBlue);
+  SMART_DrawLine(False,Point(P.x-S-1,P.y-S),Point(P.x+S+1,P.y+S),clBlue);
+  SMART_DrawLine(False,Point(P.x-S,P.y+S),Point(P.x+S+1,P.y-S-1),clBlue);
+  SMART_DrawLine(False,Point(P.x-S-1,P.y+S),Point(P.x+S+1,P.y-S),clBlue);
+  SMART_DrawLine(False,Point(P.x-S,P.y+S+1),Point(P.x+S,P.y-S-1),clBlue);
+end;
+
+Procedure RemoveATPAByAccuracy(var ATPA: T2DPointArray; Accuracy, Color: Integer);
+
+var
+  I: Integer;
+
+begin
+  for I := 0 to High(ATPA) do
+    if (Length(ATPA) = 0) or (High(ATPA) < I)  then
+      Break
+    else if Length(ATPA[I]) < Accuracy then
+    begin
+      DeleteValueInATPA(ATPA, I);
+      I := I - 1;
+    end else if (Color <> 0) then
+    begin
+      DebugIt(ToStr(Length(ATPA[I])));
+      SMART_DrawDotsEx(False, ATPA[I], Color + I * 100);
+    end;
+end;
+
+Function LoadAxeDTM(Which: Integer): integer;
+
+begin
+  DebugIt('LoadAxeDTM: ' + ToStr(Which));
+  case Which of
+    Dragon_Axe: Result := DTMFromString('mbQAAAHicY2VgYLjKwsBwAIhvAPEdID4BxF+B4hyMDAz/gPQnIP4GxJ78XECSCQUDlWAARiwYDADXZQh/');
+    Rune_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBDbevpDeQgMU48MGLFgMAAAV5oBQQ==');
+    Addy_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbO1iDRVBYBYGBGCG0oxYMBgAAFEzASk=');
+    Mith_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbGYWABVBYBYGBGCG0oxYMBgAAFGZASs=');
+    Steel_Axe:  Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAnJuZCRVBYBYGBGCG0oxYMBgAAHJ3Aa4=');
+    Black_Axe:  Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAzMfLCxVBYBYGBGCG0oxYMBgAACy0AJc=');
+    Iron_Axe:   Result := DTMFromString('mbQAAAHicY2VgYOACYn4gFgZiFgYIYAJiDiS2JBC7ODpCeQjMCFXDzIAAjFgwGAAAU9cBMg==');
+    Bronze_Axe: Result := DTMFromString('mbQAAAHicY2VgYOBigAAWIBYGYn4gZgJiSSgNAhxAbG8gAxVBYBYGBGCG0oxYMBgAAEWWAPo=');
+  end;
+end;
+
+Function PlayerStartUp: boolean;
+
+var
+  Level,AxeDTM, x, y, I: integer;
+
+begin
+  DebugIt('Function PlayerStartUp.');
+  Result := False;
+  if not IsLoggedIn then
+    Exit;
+
+  CloseBank;
+  ClosePinScreen;
+  SetCustomAngle(True);
+
+  Level := GetSkillLevel(Skill_WoodCutting);
+  DebugIt('WC Level Is ' + ToStr(Level));
+  case Level of
+    61..100: I := Dragon_Axe;
+    41..60:  I := Rune_Axe;
+    31..40:  I := Addy_Axe;
+    21..30:  I := Mith_Axe;
+    6..20:   I := Steel_Axe;
+    else
+      I := Bronze_Axe;
+  end;
+
+  if MyPlayers[CurrentPlayer].AxeWielded then
+    Gametab(tab_Equip)
+  else
+    GameTab(tab_Inv);
+
+  for I := I to Bronze_Axe do
+  begin
+    AxeDTM := LoadAxeDTM(I);
+    Result := FindDTM(AxeDTM, x, y, MIX1, MIY1, MIX2, MIY2);
+    FreeDTM(AxeDTM);
+    if Result then
+      Break;
+  end;
+
+  if Result then
+    if InvFull then
+      AssignStatus('Banking')
+    else
+      AssignStatus('Trees');
+  DebugIt('Player['+ ToStr(CurrentPlayer) + '] StartUp: ' + ToStr(Result));
 end;
 
 Procedure Report(Final: boolean);
@@ -539,8 +624,8 @@ end;
 Function OpenEdgeBankNPC: boolean;
 
 var
+  Banker: MyColor;
   DCTS: Integer; //Defaults
-  DHue, DSat: Extended; //Defaults
   Bankers: T2DPointArray;
   Colors: TPointArray;
   MousePoint: TPoint;
@@ -549,35 +634,43 @@ var
 begin
   Result := False;
 
-  GetColorspeed2Modifiers(DHue,DSat);
   DCTS := GetColorToleranceSpeed;
-  ColorToleranceSpeed(2);
-  SetColorspeed2Modifiers(BankerHue,BankerSat);
-  if FindColorsSpiralTolerance(x, y, Colors, BankerColor, MSX1, MSY1, MSX2, MSY2, BankerHSLTol) then
-  begin
-    Bankers := TPAToATPA(Colors, 25);
-    SMART_ClearMS;
-    for I := 0 to High(Bankers) do
-      SMART_DrawDotsEx(False, Bankers[i], clLime);
-    SortATPAFrom(Bankers,Point(MSCX,MSCY));
-    SortATPAFromFirstPoint(Bankers,Point(MSCX,MSCY));
-    for I := 0 to High(Bankers) do
+  Banker := LoadObject(OBJ_Banker);
+
+  try
+    ColorToleranceSpeed(Banker.CTS);
+    SetColorspeed2Modifiers(Banker.Hue, Banker.Sat);
+
+    if FindColorsSpiralTolerance(x, y, Colors, Banker.Color, MSX1, MSY1, MSX2, MSY2, Banker.Tol) then
     begin
-      MousePoint := Bankers[I][Random(High(Bankers[I]))];
-      MMouse(MousePoint.x,MousePoint.y,0,0);
-      if WaitUpTextMulti(['anke','anker','nker'], 500) then
+      Bankers := TPAToATPA(Colors, 25);
+
+      SMART_ClearMS;
+      RemoveATPAByAccuracy(Bankers, Banker.Accuracy, clLime);
+
+      SortATPAFrom(Bankers,Point(MSCX,MSCY));
+      SortATPAFromFirstPoint(Bankers,Point(MSCX,MSCY));
+
+      for I := 0 to High(Bankers) do
       begin
-        ClickMouse2(False);
-        if WaitOptionMulti(['Bank B', 'nk B'], 600) then
-          Result := WaitFunc(@BankOpen,50,4000);
+        MousePoint := Bankers[I][Random(High(Bankers[I]))];
+        MMouse(MousePoint.x,MousePoint.y,0,0);
+        if WaitUpTextMulti(['anke','anker','nker'], 500) then
+        begin
+          ClickMouse2(False);
+          if WaitOptionMulti(Banker.Uptexts, 600) then
+            Result := WaitFunc(@BankOpen,50,4000);
+        end;
+        if Result then
+          Break;
       end;
-      if Result then
-        Break;
     end;
+
+    SMART_ClearMS;
+  finally
+    ColorToleranceSpeed(DCTS);
+    SetColorspeed2Modifiers(DHue, DSat);
   end;
-  SMART_ClearMS;
-  ColorToleranceSpeed(DCTS);
-  SetColorspeed2Modifiers(DHue,DSat);
 end;
 
 Function BankIt: boolean;
@@ -590,7 +683,6 @@ begin
   if not IsLoggedIn then
     Exit;
 
-  Maintenance('n');
   Report(False);
   for FailSafe := 0 to 4 do
     if OpenEdgeBankNPC then
@@ -632,7 +724,6 @@ var
   Check: Integer;
 
 begin
-  Result := False;
   AntiRandoms;
 
   Check := 0;
@@ -653,16 +744,6 @@ begin
   Result := ((Distance(MMCX,MMCY,P[0].x,P[0].y) < Distance(MMCX,MMCY,P[1].x,P[1].y)) xor (P[0].x < P[1].x));
 end;
 
-procedure DrawPoint(Clear: Boolean; P: TPoint; S: Integer);
-begin
-  SMART_DrawLine(False,Point(P.x-S,P.y-S),Point(P.x+S+1,P.y+S+1),clBlue);
-  SMART_DrawLine(False,Point(P.x-S,P.y-S-1),Point(P.x+S,P.y+S+1),clBlue);
-  SMART_DrawLine(False,Point(P.x-S-1,P.y-S),Point(P.x+S+1,P.y+S),clBlue);
-  SMART_DrawLine(False,Point(P.x-S,P.y+S),Point(P.x+S+1,P.y-S-1),clBlue);
-  SMART_DrawLine(False,Point(P.x-S-1,P.y+S),Point(P.x+S+1,P.y-S),clBlue);
-  SMART_DrawLine(False,Point(P.x-S,P.y+S+1),Point(P.x+S,P.y-S-1),clBlue);
-end;
-
 Function GetTreePoint(North: Boolean; SPoints: TPointArray): TPoint;
 
 begin
@@ -671,51 +752,109 @@ begin
 
   SPoints := MidPoints(SPoints,9);
 
-  SMART_ClearCanvasArea(PointToBox(Point(MMX1,MMY1),Point(MMX2,MMY2)));
+  SMART_ClearCanvasArea(IntToBox(MMX1,MMY1,MMX2,MMY2));
   SMART_DrawDotsEx(False, SPoints, clRed);
-  Result := SPoints[1];
   DrawPoint(False,SPoints[1],6);
+
+  Result := SPoints[1];
 end;
 
-function ObjDTM_WalkPathEx(Path: TStringArray; Tries: Integer): Boolean;
-
-var
-  I, X, Attempts: Integer;
+Function Null_Point: TPoint;
 
 begin
-  Result := ObjDTM_InArea(Path[High(Path)], True);
-  if Result then
-    Exit;
-
-  Attempts := 0;
-  while (Attempts < Tries) do
-  begin
-    for I := High(Path) downto 0 do
-      if ObjDTM_Find(Path[I], X, X, True) then
-        Break;
-
-    if I < 0 then
-    begin
-      Inc(Attempts);
-      Continue;
-    end;
-
-    Result := ObjDTM_Walk(Path[I], 0, 50, 10, True);
-
-    if not Result then
-      Inc(Attempts);
-
-    if Result and (I = High(Path)) then
-      Break;
-  end;
-  Result := ObjDTM_InArea(Path[High(Path)], True);
+  Result := Point(-1, -1);
 end;
 
-function WalkTo(Location: string): boolean;
+Function FindWalkPoint(Location: string): TPoint;
 
 var
-  Attempt, FailSafe: Integer;
-  BankPath, TreePath: TStringArray;
+  P: TPointArray;
+  Pt, NewPt, Offset: TPoint;
+  RotateRad: Extended;
+
+begin
+  Result := Null_Point;
+  if not (IsLoggedIn and InTreeArea(P)) then
+    Exit;
+
+  case lowercase(Location) of
+    'bank': Offset := Point(35, -64);
+    'middle':  Offset := Point(31, -20);
+  end;
+
+  if P[0].x < P[1].x then
+    tSwap(P[0],P[1]);
+  Pt := MiddleTPA(P);
+
+  RotateRad := Arctan2(P[0].x - Pt.x, Pt.y - P[0].y);
+  DebugIt('Degrees = ' + tostr(Degrees(RotateRad)));
+
+  NewPt := Point(Pt.x + Offset.x, Pt.y + Offset.y);
+  NewPt := RotatePoint(NewPt, RotateRad, Pt.x, Pt.y);
+
+  if rs_OnMiniMap(NewPt.x, NewPt.y) then
+    Result := NewPt;
+end;
+
+Function AngleWalkTo(Where: string; Rand, Dist: Integer): boolean;
+
+var
+  WalkPt: TPoint;
+  FailSafe: Integer;
+
+begin
+  WalkPt := FindWalkPoint(Where);
+  if (WalkPt = Null_Point) then
+    Exit;
+
+  DrawPoint(False, WalkPt, 10);
+
+  Result := Distance(MMCX, MMCY, WalkPt.x, WalkPt.y) < Dist;
+  if not Result then
+  begin
+    Mouse(WalkPt.x, WalkPt.y, Rand, Rand, mouse_Left);
+
+    Report(False);
+
+    if WaitFunc(@IsMoving, 1, 3000 + random(500)) then
+    begin
+      MarkTime(FailSafe);
+      while (TimeFromMark(FailSafe) < 30000) do
+      begin
+        WalkPt := FindWalkPoint(Where);
+        DrawPoint(True, WalkPt, 10);
+        if (Distance(MMCX, MMCY, WalkPt.x, WalkPt.y) < Dist) or (WalkPt = Null_Point) then
+          Break;
+        Wait(RandomRange(33,55));
+        Report(False);
+      end;
+    end;
+
+    DebugIt(ToStr(TimeFromMark(FailSafe)));
+
+    Result := (TimeFromMark(FailSafe) < 30000) and (WalkPt <> Null_Point);
+  end;
+  DebugIt('AngleWalkTo(' + ToStr(Where) + ', ' + ToStr(Rand) + ', ' + ToStr(Dist) + '): '  + ToStr(Result));
+end;
+
+Function InBankBox(X, Y: Integer): Boolean;
+
+var
+  BankBox: TBox;
+
+begin
+  BankBox := IntToBox(x - 12, y - 10, x + 16, y + 10);
+  Result := PointInBox(Point(MMCX, MMCY), BankBox);
+  if Result then
+    SMART_DrawBoxEx(False, BankBox, clRed);
+
+  DebugIt('InBankBox(' + ToStr(X) + ', ' + ToStr(Y) + '): ' + ToStr(Result));
+end;
+
+Function WalkTo(Location: string): boolean;
+
+var
+  Attempt, FailSafe, X, Y: Integer;
   SP: TPointArray;
   WPoint: TPoint;
 
@@ -723,28 +862,39 @@ begin
   if not IsLoggedIn then
     Exit;
 
-  Result := False;
-
   Attempt := 0;
+
   repeat
+    SMART_ClearCanvasArea(IntToBox(MMX1, MMY1, MMX2, MMY2));
     Report(False);
     if not IsLoggedIn then
       Exit;
 
     Inc(Attempt);
-    BankPath := [MidPoint, BankPoint];
-    TreePath := [BankPoint, ReturnPoint];
 
     RunEnergy(20);
+    Maintenance('W');
     DebugIt('Walking To ' + ToStr(Location) + ' -- Attempt: ' + ToStr(Attempt));
     case lowercase(Location) of
-      'bank': Result := ObjDTM_WalkPathEx(BankPath, 5);
+      'bank':
+      begin
+        Result := ObjDTM_Find(ObjDTM_Bank, x, y, True) and InBankBox(x, y);
 
-      'trees': Result := ObjDTM_WalkPathEx(TreePath, 5);
+        if (not Result) and ObjDTM_Find(ObjDTM_Bank, x, y, True) then
+        begin
+          DebugIt('Found ObjDTM_Bank');
+          if not InBankBox(x, y) then
+            ObjDTM_Walk(ObjDTM_Bank, 3, 50, 10, True);
+        end else if AngleWalkTo('Middle', 1, 12) and ObjDTM_Find(ObjDTM_Bank, x, y, True) then
+          ObjDTM_Walk(ObjDTM_Bank, 3, 50, 10, True);
+
+        Result := ObjDTM_Find(ObjDTM_Bank, x, y, True) and InBankBox(x, y);
+      end;
+
+      'trees': Result := InTreeArea(SP) or (ObjDTM_Walk(ObjDTM_Middle, 3, 50, 10, True) and InTreeArea(SP));
 
       'north', 'south':
       begin
-        Maintenance('W');
         Report(False);
 
         if InTreeArea(SP) then
@@ -780,73 +930,109 @@ begin
   until Result or (Attempt >= MaxWalks) or (not IsLoggedIn);
 
   stats_IncVariable('Times Walked', 1);
-  SMART_ClearCanvasArea(PointToBox(Point(MMX1,MMY1),Point(MMX2,MMY2)));
   DebugIt('WalkTo(' + ToStr(Location) + '): '  + ToStr(Result));
+end;
+
+Procedure DoStats(var Count: Integer);
+
+var
+  NewCount: Integer;
+
+begin
+  if (not IsLoggedIn) or (Count = InvCount) then
+    Exit;
+
+  NewCount := InvCount;
+  IncEx(MyPlayers[CurrentPlayer].Logs, (NewCount - Count));
+  stats_IncVariable('Yew Logs Chopped', (NewCount - Count));
+  stats_IncVariable('Woodcutting EXP (Gained)', ((NewCount - Count) * YewLogExp));
+  stats_IncVariable('Total EXP Gained', ((NewCount - Count) * YewLogExp));
+  Count := NewCount;
 end;
 
 Function FindAYew(out TreeBox: TBox): boolean;
 
 var
-  TreeColors: TPointArray;
+  Colors: TPointArray;
+  Tree: MyColor;
+  DCTS: Integer;
 
 begin
-  Result := False;
   if not IsLoggedIn then
     Exit;
 
-  Result := FindColorsTolerance(TreeColors,TreeLeavesColor,MSX1,MSY1,MSX2,MSY2,3)
-              and (Length(TreeColors) >= Accuracy);
+  DCTS := GetColorToleranceSpeed;
+  Tree := LoadObject(OBJ_TreeLeaves);
 
-  TreeBox := GetTPABounds(TreeColors);
-  //DebugIt('Length Of Colors Is: ' + tostr(length(TreeColors)));
-  DebugIt('FindAYew: ' + ToStr(Result));
+  try
+    ColorToleranceSpeed(Tree.CTS);
+
+    Result := FindColorsTolerance(Colors, Tree.Color, MSX1, MSY1, MSX2, MSY2, Tree.Tol)
+              and (Length(Colors) >= Tree.Accuracy);
+    TreeBox := GetTPABounds(Colors);
+
+    DebugIt('Length Of Colors Is: ' + tostr(length(Colors)));
+  finally
+    ColorToleranceSpeed(DCTS);
+    DebugIt('FindAYew: ' + ToStr(Result));
+  end;
 end;
 
-Function CutAYew(var TreeBox: TBox): boolean;
+Function CutAYew(TreeBox: TBox): boolean;
 
 var
   MousePoint: TPoint;
   Colors: TPointArray;
-  Default: Integer;
+  DCTS: Integer; //Default CTS
+  Tree: MyColor;
 
 begin
-  Result := False;
   if not IsLoggedIn then
     Exit;
 
   DebugIt('Function CutAYew.');
 
-  Default := GetColorToleranceSpeed;
-  SetColorToleranceSpeed(1);
-  if FindColorsTolerance(Colors,TreeTrunkColor,TreeBox.X1,TreeBox.Y1,TreeBox.X2,TreeBox.Y2,1) then
-  begin
-    SMART_ClearMS;
-    SMART_DrawDotsEx(False, Colors, clRed);
-    DebugIt('Length Of Colors Is: ' + tostr(length(Colors)));
-    //MousePoint := Colors[Random(High(Colors))];
-    MousePoint := MiddleTPA(Colors);
-    MMouse(MousePoint.x,MousePoint.y-10,5,5);
-    if WaitUpTextMulti(['hop','down','ew'], 500) then
-      ClickMouse2(true);
-    Result := DidRedClick;
-  end else
-    DebugIt('Unable To Find Tree Trunk Colors.');
+  DCTS := GetColorToleranceSpeed;
+  Tree := LoadObject(OBJ_TreeTrunk);
 
-  SetColorToleranceSpeed(Default);
-  DebugIt('CutAYew: ' + ToStr(Result));
+  try
+    ColorToleranceSpeed(Tree.CTS);
+
+    if FindColorsTolerance(Colors, Tree.Color, TreeBox.X1, TreeBox.Y1, TreeBox.X2, TreeBox.Y2, Tree.Tol) then
+    begin
+      SMART_ClearMS;
+      SMART_DrawDotsEx(False, Colors, clRed);
+
+      DebugIt('Length Of Colors Is: ' + tostr(length(Colors)));
+
+      //MousePoint := Colors[Random(High(Colors))];
+      MousePoint := MiddleTPA(Colors);
+      MMouse(MousePoint.x,MousePoint.y-10,5,5);
+      if WaitUpTextMulti(Tree.Uptexts, 500) then
+        ClickMouse2(true);
+
+      Result := DidRedClick;
+    end else
+      DebugIt('Unable To Find Tree Trunk Colors.');
+
+  finally
+    SetColorToleranceSpeed(DCTS);
+    DebugIt('CutAYew: ' + ToStr(Result));
+  end;
 end;
 
-Function ChopDownYew: boolean;
+Function ChopDownYew(out TreeGone: boolean): boolean;
 
 var
   Bounds: TBox;
   TreeTime, Counter, I, Count: Integer;
 
 begin
-  Result := False;
   Report(False);
   if (not IsLoggedIn) or InvFull then
     Exit;
+
+  TreeGone := False;
 
   Count := InvCount;
   for I := 0 to MaxRetry do
@@ -862,55 +1048,39 @@ begin
       begin
         Report(False);
         DebugIt('Successfully Began To Chop Down Yew.');
+
         MarkTime(TreeTime);
         Counter := 0;
-        while IsLoggedIn and (not InvFull) and (Counter < 3) and (TimeFromMark(TreeTime) < (MaxIdle + Random(1500))) do
-        begin;
+
+        while IsLoggedIn and (not InvFull) and (Counter < 3) and (TimeFromMark(TreeTime) < MaxIdle) do
+        begin
           AntiBan;
           if not FindAYew(Bounds) then
             Inc(Counter);
 
           //Stats
-          if Count <> InvCount then
-          begin
-            IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
-            stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
-            stats_IncVariable('Woodcutting EXP (Gained)', ((InvCount-Count) * YewLogExp));
-            stats_IncVariable('Total EXP Gained', ((InvCount-Count) * YewLogExp));
-            Count := InvCount;
-          end;
+          DoStats(Count);
           Report(False);
 
           Wait(RandomRange(50,66));
         end;
         DebugIt('Time: ' + ToStr(TimeFromMark(TreeTime)));
-        Result := IsLoggedIn and (InvFull or ((TimeFromMark(TreeTime) < MaxIdle) and (Counter < 3)));
+        Result := IsLoggedIn and (InvFull or ((TimeFromMark(TreeTime) < MaxIdle) xor (Counter < 3)));
+        if Result then
+          TreeGone := (TimeFromMark(TreeTime) < MaxIdle) and (Counter >= 3);
         SMART_ClearMS;
 
         //Stats
-        if Count <> InvCount then
-        begin
-          IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
-          stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
-          stats_IncVariable('Woodcutting EXP (Gained)', ((InvCount-Count) * YewLogExp));
-          stats_IncVariable('Total EXP Gained', ((InvCount-Count) * YewLogExp));
-          Count := InvCount;
-        end;
+        DoStats(Count);
       end;
     end;
   end;
 
   //Stats
-  if Count <> InvCount then
-  begin
-    IncEx(MyPlayers[CurrentPlayer].Logs, (InvCount-Count));
-    stats_IncVariable('Yew Logs Chopped', (InvCount-Count));
-    stats_IncVariable('Woodcutting EXP (Gained)', ((InvCount-Count) * YewLogExp));
-    stats_IncVariable('Total EXP Gained', ((InvCount-Count) * YewLogExp));
-  end;
+  DoStats(Count);
 
   DebugIt(ToStr(I));
-  DebugIt('ChopDownYew: ' + ToStr(Result));
+  DebugIt('ChopDownYew(' + tostr(TreeGone) + '): ' + ToStr(Result));
 end;
 
 Function WaitTree: boolean;
@@ -921,17 +1091,13 @@ var
   It: TPointArray;
 
 begin
-  Result := False;
-  if (not IsLoggedIn) or InvFull then
+  if (not IsLoggedIn) or InvFull or (not InTreeArea(It)) then
     Exit;
 
-  if InTreeArea(It) then
-    if AtNorthTree(It) then
-      WalkTo('South')
-    else
-      WalkTo('North')
+  if AtNorthTree(It) then
+    WalkTo('South')
   else
-    Exit;
+    WalkTo('North');
 
   MarkTime(MainTimer);
 
@@ -946,16 +1112,6 @@ begin
   DebugIt('WaitTree: ' + ToStr(Result));
 end;
 
-procedure Init;
-
-begin
-  if (PaintWait = 0) then
-    Exit;
-  Prog := LoadBitmap(ThePath);
-  SMART_DrawBitmap(True,Prog,Point(MCX1,MCY1));
-  SetLength(PaintArray,6);
-end;
-
 Procedure FreeMe;
 
 begin
@@ -963,11 +1119,12 @@ begin
   Writeln('"Bye Guys" - Yago');
 end;
 
-procedure MainLoop;
+Procedure MainLoop;
 
 var
   WaitAttempts: Integer;
   Unused: TPointArray;
+  MoveOn: Boolean;
 
 begin
   repeat
@@ -989,7 +1146,7 @@ begin
     while IsLoggedIn and (WaitAttempts <= MaxWaits) do
     begin
       Report(False);
-      if InvFull then
+      if (lowercase(Event) <> 'logout') and InvFull then
         AssignStatus('Banking');
       Writeln('Status: ' + Event);
       case lowercase(Event) of
@@ -1014,7 +1171,7 @@ begin
         end;
 
         'chopping':
-        if not ChopDownYew then
+        if (not ChopDownYew(MoveOn)) or MoveOn then
         begin
           AssignStatus('Waiting');
           WaitAttempts := 0;
@@ -1036,7 +1193,7 @@ begin
   until AllPlayersInactive;
 end;
 
-begin
+Begin
   ClearDebug;
 
   ScriptUpdate;
@@ -1048,6 +1205,7 @@ begin
 
   SetupSRL;
   ObjDTM_Setup;
+  ObjDTM_Debug := Debug_Script;
   SMART_ClearCanvas;
 
   if (Stats_UserID = '') then
@@ -1062,4 +1220,4 @@ begin
   AddOnTerminate('FreeMe');
 
   MainLoop;
-end.
+End.
