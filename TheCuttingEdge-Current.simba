@@ -1185,10 +1185,14 @@ begin
         end else
           AssignStatus('Chopping');
 
-        'logout': LogOut;
+        'logout':
+        begin
+          if Debug_Script then
+            TakeScreen('TCE - Logout');
+          LogOut;
+        end;
       end;
     end;
-    //TakeScreen('TCE - Logout');
     NextPlayer(False);
   until AllPlayersInactive;
 end;
